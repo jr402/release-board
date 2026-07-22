@@ -1,0 +1,2626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Back office — Raging Heroes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ---------- Reset + base palette (mirrors index.html) ---------- */
+  :root {
+    --bg:      #1a1a1a;
+    --panel:   #242424;
+    --panel-2: #2e2e2e;
+    --text:    #eaeaea;
+    --muted:   #8a8a8a;
+    --accent:  #4f8cff;
+    --ok:      #66c46b;
+    --warn:    #f1c40f;
+    --danger:  #e0566b;
+    --border:  rgba(255,255,255,.1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+               font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               min-height: 100vh; }
+  a { color: var(--accent); }
+  button { font: inherit; }
+
+  /* ---------- Topbar ---------- */
+  #topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  #topbar h1 {
+    margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .02em;
+  }
+  #topbar h1 .sub { color: var(--muted); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  #user-menu { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #user-menu .user-info { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  #user-menu .user-email { color: var(--text); font-weight: 600; }
+  #user-menu .role-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  #user-menu .role-badge.admin  { background: #f1c40f; color: #2a2a2a; }
+  #user-menu .role-badge.editor { background: #4f8cff; color: white; }
+  #user-menu .role-badge.reader { background: var(--panel-2); color: var(--muted); }
+  #user-menu button {
+    background: transparent; color: var(--text);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 4px;
+    padding: 4px 10px; cursor: pointer; font-size: 11px;
+  }
+  #user-menu button:hover { border-color: rgba(255,255,255,.15); }
+
+  /* ---------- Main content ---------- */
+  #main { padding: 18px 22px; max-width: 1100px; margin: 0 auto; }
+
+  /* Admin: tabs */
+  #admin-tabs {
+    display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  #admin-tabs button {
+    background: transparent; color: var(--muted);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 8px 16px; cursor: pointer; font-size: 12px;
+    margin-bottom: -1px;
+  }
+  #admin-tabs button:hover { color: var(--text); }
+  #admin-tabs button.active {
+    color: var(--text); border-bottom-color: var(--accent);
+  }
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; }
+
+  /* Placeholder cards */
+  .placeholder {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 22px;
+    color: var(--muted); font-size: 13px; line-height: 1.6;
+  }
+  .placeholder h2 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
+  .placeholder code {
+    background: var(--bg); padding: 1px 6px; border-radius: 3px;
+    font-size: 11px; color: var(--text);
+  }
+
+  /* ---------- Pricing panel ---------- */
+  .pp-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .pp-header h2 { margin: 0; font-size: 14px; }
+  .pp-header label {
+    color: var(--muted); font-size: 11px;
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .pp-header .spacer { flex: 1; }
+  .pp-header button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .pp-header button:hover { border-color: rgba(255,255,255,.15); }
+
+  .pp-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .pp-table th, .pp-table td {
+    padding: 8px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle;
+  }
+  .pp-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .pp-table tr:last-child td { border-bottom: none; }
+  .pp-table tr.inactive td { opacity: .5; }
+  .pp-table .pp-cell-input {
+    background: transparent; color: var(--text);
+    border: 1px solid transparent; border-radius: 3px;
+    padding: 3px 6px; font: inherit; font-size: 12px;
+    width: 100%;
+  }
+  .pp-table .pp-cell-input:hover  { border-color: rgba(255,255,255,.08); }
+  .pp-table .pp-cell-input:focus  { border-color: var(--accent); outline: none; background: var(--bg); }
+  .pp-table .pp-cell-input.price  { text-align: right; width: 100px; }
+  .pp-table .pp-row-actions {
+    display: flex; gap: 4px; justify-content: flex-end;
+  }
+  .pp-table .pp-row-actions button {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 8px; font-size: 10px; cursor: pointer;
+  }
+  .pp-table .pp-row-actions button:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+  .pp-table .pp-row-actions button.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .pp-table .pp-row-actions button.ok { color: var(--ok); }
+
+  .pp-empty {
+    padding: 30px; text-align: center; color: var(--muted);
+    font-size: 12px; font-style: italic;
+  }
+
+  .pp-add-form {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+    display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  }
+  .pp-add-form > div { display: flex; flex-direction: column; gap: 4px; }
+  .pp-add-form label {
+    color: var(--muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .pp-add-form input, .pp-add-form select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 8px; font: inherit; font-size: 12px;
+  }
+  .pp-add-form .price-input { width: 90px; text-align: right; }
+  .pp-add-form .notes-input { width: 180px; }
+  .pp-add-form button {
+    background: var(--accent); color: white; border: none;
+    border-radius: 4px; padding: 7px 14px; font-weight: 600;
+    cursor: pointer; font-size: 12px;
+  }
+  .pp-add-form button:disabled { opacity: .5; cursor: default; }
+  .pp-error {
+    width: 100%; color: var(--danger); font-size: 11px;
+    padding-top: 6px;
+  }
+  .pp-saved-flash {
+    color: var(--ok); font-size: 10px;
+    opacity: 0; transition: opacity .15s;
+  }
+  .pp-saved-flash.visible { opacity: 1; }
+
+  /* Rate card (editable barème) */
+  .rc-cat { margin-bottom: 22px; }
+  .rc-cat-head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  }
+  .rc-cat-head h3 {
+    margin: 0; font-size: 13px; color: var(--text); font-weight: 600;
+  }
+  .rc-cat-head .rc-cat-rename {
+    background: transparent; border: 1px solid transparent; color: var(--text);
+    font-size: 13px; font-weight: 600; border-radius: 3px; padding: 2px 6px;
+  }
+  .rc-cat-head .rc-cat-rename:hover  { border-color: rgba(255,255,255,.08); }
+  .rc-cat-head .rc-cat-rename:focus  { border-color: var(--accent); outline: none; background: var(--bg); }
+  .rc-cat-head .spacer { flex: 1; }
+  .rc-cat-head .rc-cat-add {
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 10px; font-size: 11px; cursor: pointer;
+  }
+  .rc-cat-head .rc-cat-add:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+
+  .rc-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .rc-table th, .rc-table td {
+    padding: 7px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle;
+  }
+  .rc-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+  }
+  .rc-table tr:last-child td { border-bottom: none; }
+  .rc-table tr.inactive td { opacity: .5; }
+  .rc-cell {
+    background: transparent; color: var(--text);
+    border: 1px solid transparent; border-radius: 3px;
+    padding: 3px 6px; font: inherit; font-size: 12px; width: 100%;
+  }
+  .rc-cell:hover  { border-color: rgba(255,255,255,.08); }
+  .rc-cell:focus  { border-color: var(--accent); outline: none; background: var(--bg); }
+  .rc-cell.num    { text-align: right; }
+  .rc-cell.senior::placeholder { color: var(--muted); font-style: italic; }
+  .rc-actions { display: flex; gap: 4px; justify-content: flex-end; }
+  .rc-actions button {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 7px; font-size: 11px; cursor: pointer; line-height: 1.2;
+  }
+  .rc-actions button:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+  .rc-actions button.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .rc-actions button.ok { color: var(--ok); }
+  .rc-actions button:disabled { opacity: .3; cursor: default; }
+  .rc-cat-empty { padding: 14px; text-align: center; color: var(--muted); font-style: italic; font-size: 12px; }
+  .rc-addcat {
+    display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; margin-top: 4px;
+  }
+  .rc-addcat label {
+    color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    display: block; margin-bottom: 4px;
+  }
+  .rc-addcat input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 8px; font: inherit; font-size: 12px; width: 220px;
+  }
+  .rc-addcat button {
+    background: var(--accent); color: white; border: none; border-radius: 4px;
+    padding: 7px 14px; font-weight: 600; cursor: pointer; font-size: 12px;
+  }
+
+  /* Sculptors panel */
+  .sd-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .sd-table th, .sd-table td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: middle;
+  }
+  .sd-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+  }
+  .sd-table tr:last-child td { border-bottom: none; }
+  .sd-senior { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .sd-senior input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .sd-badge {
+    display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 10px;
+    background: rgba(255,255,255,.06); color: var(--muted);
+  }
+  .sd-badge.senior { background: rgba(99,102,241,.18); color: #a5b4fc; }
+
+  /* Workorder spreadsheet + per-sculptor tabs */
+  .wo-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    margin-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  .wo-tab {
+    background: transparent; border: 1px solid transparent; border-bottom: none;
+    color: var(--muted); padding: 7px 14px; font-size: 12px; cursor: pointer;
+    border-radius: 6px 6px 0 0; display: flex; align-items: center; gap: 8px;
+    margin-bottom: -1px;
+  }
+  .wo-tab:hover { color: var(--text); }
+  .wo-tab.active { color: var(--text); background: var(--panel); border-color: var(--border); border-bottom-color: var(--panel); }
+  .wo-tab .wo-tab-total { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .wo-tab .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .wo-tab .status-dot.wip { background: #f1c40f; }
+  .wo-tab .status-dot.validated { background: #4f8cff; }
+  .wo-tab .status-dot.final_sent { background: var(--ok); }
+
+  .wo-sheet {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .wo-sheet th, .wo-sheet td {
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle; text-align: left;
+  }
+  .wo-sheet th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 9px; text-transform: uppercase; letter-spacing: .04em;
+    font-weight: 600; text-align: center;
+  }
+  .wo-sheet th.l { text-align: left; }
+  .wo-sheet tr:last-child td { border-bottom: none; }
+  .wo-sheet tr.excluded { opacity: .5; }
+  .wo-sheet td.c { text-align: center; }
+  .wo-sheet input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .wo-cell {
+    background: transparent; color: var(--text); border: 1px solid transparent;
+    border-radius: 3px; padding: 3px 6px; font: inherit; font-size: 12px; width: 100%;
+  }
+  .wo-cell:hover { border-color: rgba(255,255,255,.08); }
+  .wo-cell:focus { border-color: var(--accent); outline: none; background: var(--bg); }
+  .wo-cell:disabled { opacity: .6; }
+  .wo-sheet select.wo-cell { cursor: pointer; }
+  .wo-fee { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+  .wo-fee input { width: 78px; text-align: right; font-variant-numeric: tabular-nums; }
+  .wo-badge { font-size: 9px; padding: 1px 5px; border-radius: 8px; background: rgba(255,255,255,.06); color: var(--muted); }
+  .wo-badge.override { background: rgba(241,196,15,.18); color: var(--warn); }
+  .wo-reset { background: transparent; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 1px 5px; }
+  .wo-reset:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+  .wo-del { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+  .wo-del:hover { color: var(--danger); }
+  .wo-del:disabled { opacity: .25; cursor: default; }
+  .wo-addline {
+    margin-top: 8px; background: var(--panel-2); color: var(--text);
+    border: 1px dashed var(--border); border-radius: 6px; padding: 7px 12px;
+    font-size: 12px; cursor: pointer;
+  }
+  .wo-addline:hover { border-color: var(--accent); color: var(--accent); }
+  .wo-dayoff { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin: 14px 0; }
+  .wo-dayoff label { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .wo-dayoff input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; font-size: 12px; }
+
+  /* Sculptor view */
+  #sculptor-header {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 18px;
+  }
+  #sculptor-header h2 { margin: 0; font-size: 16px; }
+  #sculptor-period {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font: inherit; font-size: 12px;
+  }
+  #sculptor-status {
+    font-size: 10px; padding: 2px 8px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+    background: var(--panel-2); color: var(--muted);
+  }
+  #sculptor-status.wip       { background: #f1c40f; color: #2a2a2a; }
+  #sculptor-status.validated { background: #4f8cff; color: white; }
+  #sculptor-status.final_sent{ background: var(--ok); color: white; }
+  #sculptor-refresh {
+    margin-left: auto;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  #sculptor-refresh:hover { border-color: rgba(255,255,255,.15); }
+  #sculptor-saved-flash {
+    color: var(--ok); font-size: 10px; opacity: 0;
+    transition: opacity .15s; margin-right: 8px;
+  }
+  #sculptor-saved-flash.visible { opacity: 1; }
+
+  /* Items list */
+  #sculptor-content {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 16px;
+  }
+  .sc-empty {
+    padding: 40px 20px; text-align: center;
+    color: var(--muted); font-size: 13px;
+  }
+  .sc-item {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .sc-item:last-child { border-bottom: none; }
+  .sc-item.excluded { opacity: .55; }
+  .sc-item .sc-include {
+    margin-top: 2px; width: 16px; height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .sc-item .sc-name {
+    font-weight: 600; font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .sc-item .sc-meta {
+    color: var(--muted); font-weight: 400; font-size: 11px;
+    margin-left: 8px;
+  }
+  .sc-item .sc-note {
+    width: 100%; min-height: 32px; max-height: 120px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; font: inherit; font-size: 12px;
+    resize: vertical; margin-top: 4px;
+  }
+  .sc-item .sc-note:focus { border-color: var(--accent); outline: none; }
+  .sc-item .sc-price {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 13px;
+    text-align: right; white-space: nowrap;
+    padding-top: 1px;
+  }
+
+  /* Total + global notes */
+  .sc-total-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; margin-bottom: 16px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+  }
+  .sc-total-row .label { color: var(--muted); font-size: 12px; }
+  .sc-total-row .amount {
+    font-weight: 700; font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sc-notes-block {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .sc-notes-block label {
+    display: block; color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .sc-notes-block textarea {
+    width: 100%; min-height: 70px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px; font: inherit; font-size: 12px;
+    resize: vertical;
+  }
+  .sc-notes-block textarea:focus { border-color: var(--accent); outline: none; }
+  .sc-notes-block .footnote {
+    color: var(--muted); font-size: 11px; margin-top: 10px; line-height: 1.5;
+  }
+  .sc-error {
+    background: rgba(224,86,107,.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 10px 14px; border-radius: 6px; font-size: 12px;
+    margin-bottom: 14px;
+  }
+
+  /* ---------- Admin workorders panel ---------- */
+  .awo-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .awo-header h2 { margin: 0; font-size: 14px; }
+  .awo-header .spacer { flex: 1; }
+  .awo-header select {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font: inherit; font-size: 12px;
+  }
+  .awo-header button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 12px; font-size: 11px; cursor: pointer;
+  }
+  .awo-header button:hover { border-color: rgba(255,255,255,.15); }
+  .awo-header button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .awo-header button:disabled { opacity: .5; cursor: default; }
+
+  .awo-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .awo-table th, .awo-table td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle;
+  }
+  .awo-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .awo-table tr:last-child td { border-bottom: none; }
+  .awo-table tr.has-data:hover { background: rgba(255,255,255,.03); cursor: pointer; }
+  .awo-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .awo-table .status-cell {
+    display: inline-block; font-size: 10px;
+    padding: 2px 8px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .awo-table .status-cell.wip        { background: #f1c40f; color: #2a2a2a; }
+  .awo-table .status-cell.validated  { background: #4f8cff; color: white; }
+  .awo-table .status-cell.final_sent { background: var(--ok); color: white; }
+  .awo-table .status-cell.none       { background: var(--panel-2); color: var(--muted); }
+  .awo-table .note-flag {
+    display: inline-block; font-size: 10px;
+    padding: 2px 6px; border-radius: 8px;
+    background: rgba(241,196,15,.15); color: var(--warn);
+  }
+  .awo-table .open-btn {
+    background: transparent; color: var(--accent);
+    border: none; cursor: pointer; font-size: 12px;
+    font-weight: 600;
+  }
+  .awo-empty {
+    padding: 30px; text-align: center; color: var(--muted);
+    font-size: 12px; font-style: italic;
+  }
+
+  /* Admin detail (per-artist WO review) */
+  .awo-detail-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 18px;
+  }
+  .awo-detail-header h2 { margin: 0; font-size: 16px; }
+  .awo-detail-header .back-btn {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .awo-detail-header .back-btn:hover { border-color: rgba(255,255,255,.15); }
+
+  .awo-detail-items {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 14px;
+  }
+  .awo-item {
+    display: grid;
+    grid-template-columns: 30px 1fr 100px 30px;
+    gap: 12px; align-items: start;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .awo-item:last-child { border-bottom: none; }
+  .awo-item.excluded { opacity: .55; }
+  .awo-item input[type="checkbox"] {
+    margin-top: 2px; width: 16px; height: 16px;
+    accent-color: var(--accent);
+  }
+  .awo-item .name { font-weight: 600; font-size: 13px; }
+  .awo-item .meta {
+    color: var(--muted); font-weight: 400; font-size: 11px;
+    margin-left: 8px;
+  }
+  .awo-item .artist-note {
+    margin-top: 6px;
+    color: var(--muted); font-size: 11px; font-style: italic;
+    padding: 6px 8px;
+    background: var(--bg); border-left: 2px solid var(--warn);
+    border-radius: 0 4px 4px 0;
+  }
+  .awo-item .artist-note::before { content: "Artist note: "; color: var(--warn); font-style: normal; font-weight: 600; }
+  .awo-item .price-input {
+    text-align: right; font-variant-numeric: tabular-nums;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; font: inherit; font-size: 12px;
+    width: 100%;
+  }
+  .awo-item .price-input:focus { border-color: var(--accent); outline: none; }
+  .awo-item .price-input:disabled { opacity: .6; }
+  .awo-item .row-del {
+    background: transparent; color: var(--muted); border: none;
+    cursor: pointer; padding: 2px 4px; font-size: 14px;
+  }
+  .awo-item .row-del:hover { color: var(--danger); }
+
+  .awo-totals-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; margin-bottom: 14px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+  }
+  .awo-totals-row .label { color: var(--muted); font-size: 12px; }
+  .awo-totals-row .amount {
+    font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+
+  .awo-notes-block {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 14px;
+  }
+  .awo-notes-block + .awo-notes-block { margin-top: -8px; }
+  .awo-notes-block label {
+    display: block; color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .awo-notes-block .ro-note {
+    background: var(--bg); padding: 8px 10px; border-radius: 4px;
+    font-size: 12px; color: var(--text); white-space: pre-wrap;
+    border-left: 3px solid var(--warn);
+  }
+  .awo-notes-block .ro-empty {
+    color: var(--muted); font-size: 12px; font-style: italic;
+  }
+  .awo-notes-block textarea {
+    width: 100%; min-height: 70px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px; font: inherit; font-size: 12px;
+    resize: vertical;
+  }
+  .awo-notes-block textarea:focus { border-color: var(--accent); outline: none; }
+
+  .awo-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding-top: 4px;
+  }
+  .awo-actions button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 8px 16px; font-size: 12px; cursor: pointer;
+    font-weight: 600;
+  }
+  .awo-actions button:hover { border-color: rgba(255,255,255,.15); }
+  .awo-actions button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .awo-actions button.primary:hover { background: #4173d6; border-color: #4173d6; }
+  .awo-actions button.danger {
+    background: transparent; color: var(--danger); border-color: var(--danger);
+  }
+  .awo-actions button:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- PDF preview modal ---------- */
+  #pdf-modal { position: fixed; inset: 0; z-index: 600; display: none; }
+  #pdf-modal.visible { display: block; }
+  #pdf-modal .pdf-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.75);
+  }
+  #pdf-modal .pdf-content {
+    position: absolute; top: 5vh; left: 50%; transform: translateX(-50%);
+    width: 760px; max-width: 96vw; height: 90vh;
+    background: var(--panel); border-radius: 10px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #pdf-modal .pdf-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+  }
+  #pdf-modal .pdf-header h2 { margin: 0; font-size: 14px; }
+  #pdf-modal .pdf-header .spacer { flex: 1; }
+  #pdf-modal .pdf-status {
+    color: var(--muted); font-size: 11px;
+  }
+  #pdf-modal .pdf-close {
+    background: transparent; color: var(--text); border: none;
+    font-size: 22px; cursor: pointer; padding: 0 6px;
+  }
+  #pdf-modal .pdf-body {
+    flex: 1; background: #2a2a2a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #pdf-modal iframe { width: 100%; height: 100%; border: none; background: white; }
+  #pdf-modal .pdf-loading {
+    color: var(--muted); font-size: 13px;
+  }
+  #pdf-modal .pdf-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 12px 18px; border-top: 1px solid var(--border);
+  }
+  #pdf-modal .pdf-actions button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 8px 16px; font-size: 12px; cursor: pointer;
+    font-weight: 600;
+  }
+  #pdf-modal .pdf-actions button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  #pdf-modal .pdf-actions button:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- Auth screen (copy of parent app pattern) ---------- */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: none; align-items: center; justify-content: center;
+  }
+  #auth-screen.visible { display: flex; }
+  .auth-card {
+    background: var(--panel); border-radius: 10px;
+    padding: 30px 32px; width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .auth-card h1 { margin: 0 0 6px; font-size: 18px; }
+  .auth-sub { color: var(--muted); margin: 0 0 18px; font-size: 12px; line-height: 1.5; }
+  .auth-card label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px;
+  }
+  .auth-card input {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 5px;
+    font: inherit;
+  }
+  .auth-card button {
+    width: 100%; padding: 9px; margin-top: 14px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 5px;
+    cursor: pointer; font-weight: 600;
+  }
+  .auth-card button:disabled { opacity: .5; cursor: default; }
+  .auth-error {
+    color: var(--danger); font-size: 11px;
+    margin-top: 10px; display: none;
+  }
+  .auth-error.visible { display: block; }
+
+  /* ---------- Loading state ---------- */
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px;
+  }
+  #loading.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loading">Loading…</div>
+
+<!-- Auth screen (password-only, mirrors index.html) -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>Back office</h1>
+    <p class="auth-sub">Sign in to access workorders and billing.</p>
+    <div class="auth-error" id="auth-error"></div>
+    <label for="auth-email">Email</label>
+    <input id="auth-email" type="email" autocomplete="email" placeholder="you@company.com" />
+    <label for="auth-password">Password</label>
+    <input id="auth-password" type="password" autocomplete="current-password" />
+    <button id="auth-btn">Sign in</button>
+    <p style="margin-top:14px;color:var(--muted);font-size:11px;line-height:1.5">
+      No password yet? Ask an admin to add you.
+      <a href="index.html" style="color:var(--accent);text-decoration:none">← Back to the board</a>
+    </p>
+  </div>
+</div>
+
+<!-- Main app shell (hidden until auth completes) -->
+<div id="app" style="display:none">
+  <div id="topbar">
+    <h1>Back office <span class="sub" id="topbar-sub"></span></h1>
+    <div id="user-menu">
+      <div class="user-info">
+        <span class="user-email" id="user-email-display"></span>
+        <span class="role-badge" id="user-role-badge"></span>
+      </div>
+      <button id="btn-board" title="Back to the release board">← Board</button>
+      <button id="btn-logout" title="Log out">Logout</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <!-- Admin view (tabs + panels). Hidden if user is not admin. -->
+    <div id="admin-view" style="display:none">
+      <div id="admin-tabs">
+        <button data-tab="workorders" class="active">Workorders</button>
+        <button data-tab="pricing">Pricing</button>
+        <button data-tab="sculptors">Sculptors</button>
+        <button data-tab="history">History</button>
+      </div>
+      <div id="admin-panel-workorders" class="admin-panel active">
+        <div class="awo-header">
+          <h2>Workorders</h2>
+          <select id="awo-period" title="Period"></select>
+          <div class="spacer"></div>
+          <span class="pp-saved-flash" id="awo-saved-flash">Saved ✓</span>
+          <button id="awo-refresh-all" title="Re-scan all boards and sync every artist's WO">↻ Refresh all artists</button>
+        </div>
+        <div id="awo-error" class="sc-error" style="display:none"></div>
+
+        <!-- One tab per active sculptor this period -->
+        <div id="awo-tabs" class="wo-tabs"></div>
+
+        <!-- Selected sculptor's workorder sheet -->
+        <div id="awo-sheet-wrap">
+          <div id="awo-detail-error" class="sc-error" style="display:none"></div>
+          <div class="awo-detail-header">
+            <h2 id="awo-detail-title">…</h2>
+            <span id="awo-detail-status" class="status-cell none"></span>
+            <div class="spacer" style="flex:1"></div>
+            <span class="pp-saved-flash" id="awo-detail-saved">Saved ✓</span>
+          </div>
+          <div id="awo-detail-items"></div>
+          <div class="awo-totals-row">
+            <span class="label">Total (included lines)</span>
+            <span class="amount" id="awo-detail-total">0 €</span>
+          </div>
+          <div class="wo-dayoff">
+            <div><label>Day off — start</label><input type="date" id="awo-dayoff-start" /></div>
+            <div><label>Day off — end</label><input type="date" id="awo-dayoff-end" /></div>
+          </div>
+          <div class="awo-notes-block">
+            <label>Artist comments (read-only)</label>
+            <div id="awo-artist-notes" class="ro-empty">— no comments from artist —</div>
+          </div>
+          <div class="awo-notes-block">
+            <label>Admin notes (private — not shown to artist)</label>
+            <textarea id="awo-admin-notes"
+              placeholder="Internal notes for this workorder…"></textarea>
+          </div>
+          <div class="awo-actions">
+            <button class="danger" id="awo-revert" style="display:none">Revert to wip</button>
+            <button id="awo-pdf">📄 Preview PDF</button>
+            <button class="primary" id="awo-validate">Validate &amp; lock →</button>
+          </div>
+        </div>
+        <div id="awo-empty-msg" class="awo-empty" style="display:none">No active sculptor this period. Use “Refresh all artists” to scan the boards.</div>
+      </div>
+
+      <!-- PDF preview modal -->
+      <div id="pdf-modal">
+        <div class="pdf-backdrop" id="pdf-backdrop"></div>
+        <div class="pdf-content">
+          <div class="pdf-header">
+            <h2 id="pdf-modal-title">PDF preview</h2>
+            <span class="pdf-status" id="pdf-status">Generating…</span>
+            <div class="spacer"></div>
+            <button class="pdf-close" id="pdf-close" title="Close (Esc)">×</button>
+          </div>
+          <div class="pdf-body">
+            <div class="pdf-loading" id="pdf-loading">Preparing PDF…</div>
+            <iframe id="pdf-iframe" style="display:none"></iframe>
+          </div>
+          <div class="pdf-actions">
+            <button id="pdf-download">Download</button>
+            <button class="primary" id="pdf-send" disabled title="Comes in Phase 7 (Resend email pipeline)">Send final → (Phase 7)</button>
+          </div>
+        </div>
+      </div>
+      <div id="admin-panel-pricing" class="admin-panel">
+        <div class="pp-header">
+          <h2>Rate card</h2>
+          <label><input type="checkbox" id="pp-show-inactive" /> Show inactive</label>
+          <div class="spacer"></div>
+          <span class="pp-saved-flash" id="pp-saved-flash">Saved ✓</span>
+          <button id="pp-refresh" title="Reload from database">↻ Refresh</button>
+        </div>
+        <div class="pp-error" id="pp-error"></div>
+        <div id="rc-sections"></div>
+        <div class="rc-addcat">
+          <div>
+            <label>New category</label>
+            <input id="rc-new-cat" type="text" placeholder="e.g. Other rates" />
+          </div>
+          <button id="rc-add-cat">+ Add category</button>
+        </div>
+      </div>
+      <div id="admin-panel-sculptors" class="admin-panel">
+        <div class="pp-header">
+          <h2>Sculptors</h2>
+          <div class="spacer"></div>
+          <span class="pp-saved-flash" id="sd-saved-flash">Saved ✓</span>
+          <button id="sd-refresh" title="Reload members">↻ Refresh</button>
+        </div>
+        <div class="pp-error" id="sd-error"></div>
+        <table class="sd-table">
+          <thead>
+            <tr>
+              <th style="width:30%">Name</th>
+              <th style="width:30%">Email</th>
+              <th style="width:120px">Role</th>
+              <th style="width:140px">Senior (+ rate)</th>
+            </tr>
+          </thead>
+          <tbody id="sd-tbody"></tbody>
+        </table>
+      </div>
+      <div id="admin-panel-history" class="admin-panel">
+        <div class="placeholder">
+          <h2>History</h2>
+          Phase 8 will land here: past workorders, PDF downloads, CSV export.
+        </div>
+      </div>
+    </div>
+
+    <!-- Sculptor view. Hidden if user is admin. -->
+    <div id="sculptor-view" style="display:none">
+      <div id="sculptor-header">
+        <h2 id="sculptor-greeting">Hi —</h2>
+        <select id="sculptor-period" title="Period (year-month)"></select>
+        <span id="sculptor-status">no workorder</span>
+        <span id="sculptor-saved-flash">Saved ✓</span>
+        <button id="sculptor-refresh" title="Re-scan the boards for new items">↻ Refresh</button>
+      </div>
+      <div id="sculptor-error" class="sc-error" style="display:none"></div>
+      <div id="sculptor-content">
+        <div class="sc-empty">Loading…</div>
+      </div>
+      <div class="sc-total-row">
+        <span class="label">Running total (included lines)</span>
+        <span class="amount" id="sculptor-total">0 €</span>
+      </div>
+      <div class="wo-dayoff">
+        <div><label>Day off — start</label><input type="date" id="sculptor-dayoff-start" /></div>
+        <div><label>Day off — end</label><input type="date" id="sculptor-dayoff-end" /></div>
+      </div>
+      <div class="sc-notes-block">
+        <label for="sculptor-notes-textarea">Comments for this month</label>
+        <textarea id="sculptor-notes-textarea"
+          placeholder="Anything the admin should know about this month overall…"></textarea>
+        <div class="footnote">
+          Lines appear here as you tag items with your name on the board — fill in
+          the miniature type, tick the work you did, and the FEES compute from the
+          rate card. Use “+ Add line” for anything not on a board. Everything is
+          visible to the admin and saved live; FEES are finalised by the admin.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Supabase config (same project as parent app) ----------
+// TODO: extract to a shared config.js eventually so we don't drift.
+const SUPABASE_URL      = "https://jwokrnrpmzscmnazzmci.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5xhGx3Sz0TiCz8RDVcH7kg_POFKcPkl";
+
+let sb = null;
+let currentUser = null; // { email, role, display_name }
+let membersCache = [];  // [{ email, display_name, role }]
+
+// Dev override: ?role=reader|editor|admin in the URL forces a view even when
+// the user has a different real role. Purely UI — RLS still applies to the
+// underlying real role, so all reads/writes behave as the actual account.
+const ROLE_OVERRIDE = new URLSearchParams(location.search).get("role");
+function effectiveRole() {
+  if (ROLE_OVERRIDE && ["admin","editor","reader"].includes(ROLE_OVERRIDE)) return ROLE_OVERRIDE;
+  return currentUser?.role;
+}
+
+const CHARACTER_TYPES = ["hero","troop","monster","scenery","centerpiece","diorama"];
+const TYPE_LABEL = {
+  hero: "Hero", troop: "Troop", monster: "Monster",
+  scenery: "Scenery", centerpiece: "Centerpiece", diorama: "Diorama"
+};
+
+// Default category order for the rate card. Categories not in this list
+// are appended after, in first-seen order.
+const RATE_CATEGORIES = ["Items", "Troopers (individual)", "Troops (unit)", "Other rates"];
+
+// Miniature types offered in the workorder sheet dropdown. Labels MUST match
+// rate_card lines so the fee trigger can price them (see 2026-06-27 migration).
+const MINIATURE_TYPES = [
+  "Hero",
+  "Standard Creature",
+  "Monster or Vehicle",
+  "LARGE Monster / Vehicle",
+  "Fee for 1 trooper",
+  "4 Troops on foot",
+  "5 Troops on foot",
+  "6 Troops on foot",
+];
+
+async function loadMembersCache() {
+  const { data, error } = await sb.from("members")
+    .select("email, display_name, role, is_senior").order("email");
+  if (error) { console.warn("Members cache failed", error); return; }
+  membersCache = data || [];
+}
+function memberDisplayName(email) {
+  if (!email) return "";
+  const m = membersCache.find(x => x.email === email);
+  if (m && m.display_name) return m.display_name;
+  return (email.split("@")[0] || email);
+}
+
+// Dynamically load the Supabase SDK (mirrors index.html behavior).
+async function loadSupabaseSdk() {
+  if (window.supabase) return true;
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+    s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(false), 8000);
+  });
+}
+
+async function initSupabase() {
+  const ok = await loadSupabaseSdk();
+  if (!ok || !window.supabase) {
+    showFatal("Could not load Supabase SDK. Check your connection.");
+    return false;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storage: window.localStorage,
+    },
+  });
+  return true;
+}
+
+function showFatal(msg) {
+  const loading = document.getElementById("loading");
+  loading.style.color = "var(--danger)";
+  loading.textContent = msg;
+  loading.classList.remove("hidden");
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.classList.add("visible");
+}
+function clearAuthError() {
+  document.getElementById("auth-error").classList.remove("visible");
+}
+
+function showAuthScreen() {
+  document.getElementById("loading").classList.add("hidden");
+  document.getElementById("auth-screen").classList.add("visible");
+  document.getElementById("auth-email").focus();
+}
+function hideAuthScreen() {
+  document.getElementById("auth-screen").classList.remove("visible");
+}
+
+// ---------- Auth flow ----------
+async function loadCurrentUser(email) {
+  const { data, error } = await sb.from("members")
+    .select("email, role, display_name").eq("email", email).maybeSingle();
+  if (error) {
+    showAuthError("Lookup failed: " + error.message);
+    return false;
+  }
+  if (!data) {
+    showAuthError(`${email} is not invited yet. Ask an admin to add you.`);
+    await sb.auth.signOut();
+    return false;
+  }
+  currentUser = { email: data.email, role: data.role, display_name: data.display_name || null };
+  return true;
+}
+
+async function signIn() {
+  clearAuthError();
+  const email    = document.getElementById("auth-email").value.trim().toLowerCase();
+  const password = document.getElementById("auth-password").value;
+  if (!email || !password) { showAuthError("Email and password required."); return; }
+  const btn = document.getElementById("auth-btn");
+  btn.disabled = true; btn.textContent = "Signing in…";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = "Sign in";
+  if (error) {
+    showAuthError(/invalid login credentials/i.test(error.message)
+      ? "Wrong email or password."
+      : error.message);
+    return;
+  }
+  const ok = await loadCurrentUser(email);
+  if (!ok) return;
+  hideAuthScreen();
+  await boot();
+}
+
+async function tryRestoreSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return false;
+  const ok = await loadCurrentUser(session.user.email);
+  return ok;
+}
+
+async function logout() {
+  if (sb) await sb.auth.signOut();
+  currentUser = null;
+  location.reload();
+}
+
+// ---------- Boot ----------
+async function boot() {
+  document.getElementById("loading").classList.add("hidden");
+  document.getElementById("app").style.display = "block";
+
+  // Header user info
+  document.getElementById("user-email-display").textContent =
+    currentUser.display_name ? `${currentUser.display_name} (${currentUser.email})` : currentUser.email;
+  const badge = document.getElementById("user-role-badge");
+  badge.textContent = currentUser.role;
+  badge.className = "role-badge " + currentUser.role;
+
+  // We need the members cache for the artist dropdown in the pricing form.
+  // Load in parallel — it's cheap and used by both views.
+  await loadMembersCache();
+
+  // Role-based UI branch — supports the dev override via ?role=...
+  const role = effectiveRole();
+  const overrideBanner = (ROLE_OVERRIDE && ROLE_OVERRIDE !== currentUser.role)
+    ? ` <span style="color:var(--warn);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-left:6px">dev: ${ROLE_OVERRIDE} view</span>`
+    : "";
+  if (role === "admin") {
+    document.getElementById("topbar-sub").innerHTML = "— admin" + overrideBanner;
+    document.getElementById("admin-view").style.display = "block";
+    setupAdminTabs();
+    setupWorkordersPanel();
+    setupRateCard();
+    setupSculptorsPanel();
+  } else {
+    document.getElementById("topbar-sub").innerHTML =
+      `— ${currentUser.display_name || currentUser.email.split("@")[0]}` + overrideBanner;
+    document.getElementById("sculptor-view").style.display = "block";
+    document.getElementById("sculptor-greeting").textContent =
+      `Hi ${currentUser.display_name || currentUser.email.split("@")[0]} —`;
+    setupSculptorView();
+  }
+}
+
+function setupAdminTabs() {
+  document.querySelectorAll("#admin-tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll("#admin-tabs button").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".admin-panel").forEach(p => {
+        p.classList.toggle("active", p.id === `admin-panel-${tab}`);
+      });
+    });
+  });
+}
+
+// ---------- Sculptor view ----------
+let scState = {
+  period: null,
+  workorderId: null,
+  workorder: null,     // row from `workorders`
+  items: [],           // rows from `workorder_items`
+  realtimeChannel: null,
+  suppressNextEcho: false,
+};
+
+function setupSculptorView() {
+  // Populate the period selector with the last 12 months.
+  const sel = document.getElementById("sculptor-period");
+  sel.innerHTML = "";
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label + (i === 0 ? " (current)" : "");
+    sel.appendChild(opt);
+  }
+  sel.value = sel.options[0].value;
+
+  sel.addEventListener("change", () => loadSculptorPeriod(sel.value));
+  document.getElementById("sculptor-refresh").addEventListener("click", () => loadSculptorPeriod(scState.period));
+
+  // Global comments — save on blur.
+  document.getElementById("sculptor-notes-textarea").addEventListener("blur", saveGlobalNote);
+  // Day off — save on change.
+  document.getElementById("sculptor-dayoff-start").addEventListener("change", saveSculptorDayOff);
+  document.getElementById("sculptor-dayoff-end").addEventListener("change", saveSculptorDayOff);
+
+  // Initial load.
+  loadSculptorPeriod(sel.value);
+}
+
+function flashSculptorSaved() {
+  const el = document.getElementById("sculptor-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(flashSculptorSaved._t);
+  flashSculptorSaved._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showSculptorError(msg) {
+  const el = document.getElementById("sculptor-error");
+  if (!msg) { el.style.display = "none"; return; }
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+// Scan boards_data and return the items belonging to the current user.
+async function scanBoardsForMyItems() {
+  const { data, error } = await sb.from("boards_data").select("data").eq("id", "default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  const payload = [];
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (item.type !== "image" && item.type !== "slot") continue;
+      if (!item.artist_email) continue;
+      if (item.artist_email !== currentUser.email) continue;
+      payload.push({
+        source_board_id: board.id,
+        source_item_id:  item.id,
+        character_name:  item.label || null,
+        character_type:  item.characterType || null,
+        base_size:       item.baseSize || null,
+        tier:            item.tier || null,
+        default_included: item.status === "approved",
+      });
+    }
+  }
+  return payload;
+}
+
+async function loadSculptorPeriod(period) {
+  scState.period = period;
+  showSculptorError("");
+  const content = document.getElementById("sculptor-content");
+  content.innerHTML = "<div class='sc-empty'>Loading…</div>";
+
+  let items, woId;
+  try {
+    items = await scanBoardsForMyItems();
+  } catch (e) {
+    showSculptorError("Failed to read boards: " + (e.message || e));
+    content.innerHTML = "<div class='sc-empty'>—</div>";
+    return;
+  }
+
+  // Call the sync RPC to ensure the WO + lines exist.
+  const { data: rpcData, error: rpcErr } = await sb.rpc("sync_my_workorder", {
+    p_period: period,
+    p_items:  items,
+  });
+  if (rpcErr) {
+    showSculptorError("Sync failed: " + rpcErr.message);
+    content.innerHTML = "<div class='sc-empty'>—</div>";
+    return;
+  }
+  woId = rpcData;
+  scState.workorderId = woId;
+
+  // Load WO + items.
+  await reloadSculptorData();
+  subscribeSculptorRealtime();
+}
+
+async function reloadSculptorData() {
+  if (!scState.workorderId) return;
+  const [{ data: wo, error: e1 }, { data: lines, error: e2 }] = await Promise.all([
+    sb.from("workorders").select("*").eq("id", scState.workorderId).maybeSingle(),
+    sb.from("workorder_items").select("*").eq("workorder_id", scState.workorderId)
+      .order("created_at"),
+  ]);
+  if (e1 || e2) {
+    showSculptorError("Load failed: " + (e1?.message || e2?.message));
+    return;
+  }
+  scState.workorder = wo;
+  scState.items = lines || [];
+  renderSculptor();
+}
+
+function renderSculptor() {
+  const status = scState.workorder?.status || "";
+  const statusEl = document.getElementById("sculptor-status");
+  statusEl.className = ""; statusEl.classList.add(status);
+  statusEl.textContent = status === "wip" ? "wip — open for edits"
+                       : status === "validated" ? "validated"
+                       : status === "final_sent" ? "final sent"
+                       : "no workorder";
+
+  // Comments textarea — only re-fill if not focused (don't clobber typing).
+  const notesEl = document.getElementById("sculptor-notes-textarea");
+  if (document.activeElement !== notesEl) notesEl.value = scState.workorder?.notes_artist || "";
+  notesEl.disabled = status !== "wip";
+
+  // Day off
+  const ds = document.getElementById("sculptor-dayoff-start");
+  const de = document.getElementById("sculptor-dayoff-end");
+  if (document.activeElement !== ds) ds.value = scState.workorder?.day_off_start || "";
+  if (document.activeElement !== de) de.value = scState.workorder?.day_off_end || "";
+  ds.disabled = de.disabled = status !== "wip";
+
+  // Sheet (same component as the admin view, sculptor mode)
+  const content = document.getElementById("sculptor-content");
+  content.innerHTML = "";
+  if (scState.workorder) {
+    content.appendChild(buildWoSheet(scState.workorder, scState.items, sculptorCtx()));
+  } else {
+    content.innerHTML = "<div class='sc-empty'>No workorder yet this period.</div>";
+  }
+
+  // Total
+  const total = scState.items
+    .filter(it => it.included)
+    .reduce((s, it) => s + Number(it.unit_price || 0), 0);
+  document.getElementById("sculptor-total").textContent = formatEur(total);
+}
+
+function sculptorCtx() {
+  const locked = (scState.workorder?.status || "") !== "wip";
+  return {
+    mode: "sculptor",
+    locked,
+    wo: scState.workorder,
+    flash:    flashSculptorSaved,
+    error:    showSculptorError,
+    suppress: () => { scState.suppressNextEcho = true; },
+    reload:   reloadSculptorData,
+  };
+}
+
+function formatEur(n) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
+}
+
+async function saveSculptorDayOff() {
+  if (!scState.workorderId) return;
+  if ((scState.workorder?.status || "") !== "wip") return;
+  const start = document.getElementById("sculptor-dayoff-start").value || null;
+  const end   = document.getElementById("sculptor-dayoff-end").value || null;
+  const wo = scState.workorder;
+  if ((wo?.day_off_start || null) === start && (wo?.day_off_end || null) === end) return;
+  scState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ day_off_start: start, day_off_end: end }).eq("id", scState.workorderId);
+  if (error) { showSculptorError("Could not save day off: " + error.message); return; }
+  if (wo) { wo.day_off_start = start; wo.day_off_end = end; }
+  flashSculptorSaved();
+}
+
+async function saveGlobalNote() {
+  if (!scState.workorderId) return;
+  if (scState.workorder?.status !== "wip") return;
+  const value = document.getElementById("sculptor-notes-textarea").value;
+  const trimmed = value.trim() || null;
+  if ((scState.workorder?.notes_artist || null) === trimmed) return;
+  scState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ notes_artist: trimmed }).eq("id", scState.workorderId);
+  if (error) {
+    showSculptorError("Could not save note: " + error.message);
+    return;
+  }
+  if (scState.workorder) scState.workorder.notes_artist = trimmed;
+  flashSculptorSaved();
+}
+
+function subscribeSculptorRealtime() {
+  if (scState.realtimeChannel) {
+    sb.removeChannel(scState.realtimeChannel);
+    scState.realtimeChannel = null;
+  }
+  if (!scState.workorderId) return;
+
+  scState.realtimeChannel = sb
+    .channel(`sculptor-wo-${scState.workorderId}`)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorders",
+          filter: `id=eq.${scState.workorderId}` },
+        (payload) => {
+          if (scState.suppressNextEcho) { scState.suppressNextEcho = false; return; }
+          if (payload.new) scState.workorder = payload.new;
+          renderSculptor();
+        })
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorder_items",
+          filter: `workorder_id=eq.${scState.workorderId}` },
+        (payload) => {
+          if (scState.suppressNextEcho) { scState.suppressNextEcho = false; return; }
+          // Lazy strategy: just refetch the items list.
+          reloadSculptorData();
+        })
+    .subscribe();
+}
+
+// ---------- Pricing panel ----------
+function setupRateCard() {
+  document.getElementById("pp-refresh").addEventListener("click", renderRateCard);
+  document.getElementById("pp-show-inactive").addEventListener("change", renderRateCard);
+  document.getElementById("rc-add-cat").addEventListener("click", addCategory);
+  document.getElementById("rc-new-cat").addEventListener("keydown", e => {
+    if (e.key === "Enter") addCategory();
+  });
+  renderRateCard();
+}
+
+function flashSaved() {
+  const el = document.getElementById("pp-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(flashSaved._t);
+  flashSaved._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showPriceError(msg) {
+  const el = document.getElementById("pp-error");
+  el.textContent = msg;
+  clearTimeout(showPriceError._t);
+  showPriceError._t = setTimeout(() => { el.textContent = ""; }, 5000);
+}
+
+let rcCache = [];  // last-loaded rate_card rows (for reorder + add-line ordering)
+
+async function renderRateCard() {
+  const container = document.getElementById("rc-sections");
+  const showInactive = document.getElementById("pp-show-inactive").checked;
+  container.innerHTML = "<div class='rc-cat-empty'>Loading…</div>";
+
+  let query = sb.from("rate_card")
+    .select("id, category, label, fee, senior_fee, artist_email, currency, sort_order, active, notes")
+    .order("category").order("sort_order");
+  if (!showInactive) query = query.eq("active", true);
+
+  const { data, error } = await query;
+  if (error) {
+    container.innerHTML = `<div class='rc-cat-empty' style='color:var(--danger)'>${error.message}</div>`;
+    return;
+  }
+  rcCache = data || [];
+
+  // Group by category, ordering the known categories first.
+  const groups = new Map();
+  for (const r of rcCache) {
+    if (!groups.has(r.category)) groups.set(r.category, []);
+    groups.get(r.category).push(r);
+  }
+  const cats = [...groups.keys()].sort((a, b) => {
+    const ia = RATE_CATEGORIES.indexOf(a), ib = RATE_CATEGORIES.indexOf(b);
+    const ra = ia === -1 ? 999 : ia, rb = ib === -1 ? 999 : ib;
+    return ra !== rb ? ra - rb : a.localeCompare(b);
+  });
+
+  if (cats.length === 0) {
+    container.innerHTML = "<div class='rc-cat-empty'>No rate lines yet. Add a category below to start.</div>";
+    return;
+  }
+
+  container.innerHTML = "";
+  for (const cat of cats) container.appendChild(renderCategorySection(cat, groups.get(cat)));
+}
+
+function renderCategorySection(cat, rows) {
+  const wrap = document.createElement("div");
+  wrap.className = "rc-cat";
+
+  const head = document.createElement("div");
+  head.className = "rc-cat-head";
+  const title = document.createElement("input");
+  title.className = "rc-cat-rename";
+  title.value = cat;
+  title.title = "Rename category (applies to all its lines)";
+  title.addEventListener("change", async () => {
+    const newCat = title.value.trim();
+    if (!newCat || newCat === cat) { title.value = cat; return; }
+    const { error } = await sb.from("rate_card").update({ category: newCat }).eq("category", cat);
+    if (error) { showPriceError(error.message); title.value = cat; return; }
+    flashSaved(); renderRateCard();
+  });
+  head.appendChild(title);
+  const spacer = document.createElement("div"); spacer.className = "spacer"; head.appendChild(spacer);
+  const addBtn = document.createElement("button");
+  addBtn.className = "rc-cat-add"; addBtn.textContent = "+ line";
+  addBtn.addEventListener("click", () => addRateLine(cat));
+  head.appendChild(addBtn);
+  wrap.appendChild(head);
+
+  const table = document.createElement("table");
+  table.className = "rc-table";
+  table.innerHTML = `<thead><tr>
+    <th>Item</th>
+    <th style="width:120px;text-align:right">Fee (€)</th>
+    <th style="width:120px;text-align:right">Senior (€)</th>
+    <th>Notes</th>
+    <th style="width:160px"></th>
+  </tr></thead>`;
+  const tbody = document.createElement("tbody");
+  if (rows.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='5' class='rc-cat-empty'>No lines. Use “+ line”.</td></tr>";
+  } else {
+    rows.forEach((row, i) => tbody.appendChild(renderRateRow(row, rows, i)));
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function rcCell(value, type) {
+  const el = document.createElement("input");
+  el.type = type;
+  if (type === "number") { el.step = "0.01"; el.min = "0"; }
+  el.className = "rc-cell";
+  el.value = value;
+  return el;
+}
+
+async function rcSave(row, patch, revert) {
+  const { error } = await sb.from("rate_card").update(patch).eq("id", row.id);
+  if (error) { showPriceError(error.message); if (revert) revert(); return; }
+  Object.assign(row, patch);
+  flashSaved();
+}
+
+function renderRateRow(row, rows, idx) {
+  const tr = document.createElement("tr");
+  if (!row.active) tr.classList.add("inactive");
+
+  // Label (editable). Show an artist badge if the line is scoped to one sculptor.
+  const tdLabel = document.createElement("td");
+  const labelIn = rcCell(row.label, "text");
+  labelIn.disabled = !row.active;
+  labelIn.addEventListener("change", () => {
+    const v = labelIn.value.trim();
+    if (!v) { labelIn.value = row.label; return; }
+    if (v === row.label) return;
+    rcSave(row, { label: v }, () => { labelIn.value = row.label; });
+  });
+  tdLabel.appendChild(labelIn);
+  if (row.artist_email) {
+    const b = document.createElement("span");
+    b.className = "sd-badge"; b.style.marginLeft = "6px";
+    b.textContent = memberDisplayName(row.artist_email);
+    b.title = "Line specific to " + row.artist_email;
+    tdLabel.appendChild(b);
+  }
+  tr.appendChild(tdLabel);
+
+  // Fee (standard)
+  const tdFee = document.createElement("td");
+  const feeIn = rcCell(row.fee, "number"); feeIn.classList.add("num");
+  feeIn.disabled = !row.active;
+  feeIn.addEventListener("change", () => {
+    const v = parseFloat(feeIn.value);
+    if (isNaN(v) || v < 0) { showPriceError("Fee must be a non-negative number"); feeIn.value = row.fee; return; }
+    if (v === Number(row.fee)) return;
+    rcSave(row, { fee: v }, () => { feeIn.value = row.fee; });
+  });
+  tdFee.appendChild(feeIn); tr.appendChild(tdFee);
+
+  // Senior fee (optional — blank means seniors pay the standard fee)
+  const tdSenior = document.createElement("td");
+  const senIn = rcCell(row.senior_fee == null ? "" : row.senior_fee, "number");
+  senIn.classList.add("num", "senior");
+  senIn.placeholder = "= " + row.fee;
+  senIn.disabled = !row.active;
+  senIn.addEventListener("change", () => {
+    const raw = senIn.value.trim();
+    if (raw === "") {
+      if (row.senior_fee == null) return;
+      rcSave(row, { senior_fee: null }, () => { senIn.value = row.senior_fee == null ? "" : row.senior_fee; });
+      return;
+    }
+    const v = parseFloat(raw);
+    if (isNaN(v) || v < 0) { showPriceError("Senior fee must be a non-negative number"); senIn.value = row.senior_fee == null ? "" : row.senior_fee; return; }
+    if (v === Number(row.senior_fee)) return;
+    rcSave(row, { senior_fee: v }, () => { senIn.value = row.senior_fee == null ? "" : row.senior_fee; });
+  });
+  tdSenior.appendChild(senIn); tr.appendChild(tdSenior);
+
+  // Notes
+  const tdNotes = document.createElement("td");
+  const notesIn = rcCell(row.notes || "", "text");
+  notesIn.disabled = !row.active;
+  notesIn.addEventListener("change", () => {
+    const v = notesIn.value.trim() || null;
+    if (v === (row.notes || null)) return;
+    rcSave(row, { notes: v }, () => { notesIn.value = row.notes || ""; });
+  });
+  tdNotes.appendChild(notesIn); tr.appendChild(tdNotes);
+
+  // Actions: reorder ↑/↓, deactivate / reactivate / delete
+  const tdActions = document.createElement("td");
+  tdActions.className = "rc-actions";
+  const up = document.createElement("button");
+  up.textContent = "↑"; up.title = "Move up"; up.disabled = idx === 0;
+  up.addEventListener("click", () => moveRateLine(row, rows, idx, -1));
+  const down = document.createElement("button");
+  down.textContent = "↓"; down.title = "Move down"; down.disabled = idx === rows.length - 1;
+  down.addEventListener("click", () => moveRateLine(row, rows, idx, +1));
+  tdActions.appendChild(up); tdActions.appendChild(down);
+
+  if (row.active) {
+    const off = document.createElement("button");
+    off.className = "danger"; off.textContent = "Deactivate";
+    off.title = "Soft-delete: kept for history, hidden by default.";
+    off.addEventListener("click", async () => {
+      const { error } = await sb.from("rate_card").update({ active: false }).eq("id", row.id);
+      if (error) { showPriceError(error.message); return; }
+      flashSaved(); renderRateCard();
+    });
+    tdActions.appendChild(off);
+  } else {
+    const on = document.createElement("button");
+    on.className = "ok"; on.textContent = "Reactivate";
+    on.addEventListener("click", async () => {
+      const { error } = await sb.from("rate_card").update({ active: true }).eq("id", row.id);
+      if (error) { showPriceError(error.message); return; }
+      flashSaved(); renderRateCard();
+    });
+    tdActions.appendChild(on);
+    const del = document.createElement("button");
+    del.className = "danger"; del.textContent = "Delete";
+    del.title = "Permanent delete (inactive lines only).";
+    del.addEventListener("click", async () => {
+      if (!confirm(`Permanently delete “${row.label}” (${row.fee}€)?`)) return;
+      const { error } = await sb.from("rate_card").delete().eq("id", row.id);
+      if (error) { showPriceError(error.message); return; }
+      flashSaved(); renderRateCard();
+    });
+    tdActions.appendChild(del);
+  }
+  tr.appendChild(tdActions);
+  return tr;
+}
+
+async function moveRateLine(row, rows, idx, dir) {
+  const other = rows[idx + dir];
+  if (!other) return;
+  const a = row.sort_order, b = other.sort_order;
+  let err;
+  if (a === b) {
+    ({ error: err } = await sb.from("rate_card").update({ sort_order: a + dir }).eq("id", row.id));
+  } else {
+    const r1 = await sb.from("rate_card").update({ sort_order: b }).eq("id", row.id);
+    const r2 = await sb.from("rate_card").update({ sort_order: a }).eq("id", other.id);
+    err = r1.error || r2.error;
+  }
+  if (err) { showPriceError(err.message); return; }
+  flashSaved(); renderRateCard();
+}
+
+async function addRateLine(category) {
+  const inCat = rcCache.filter(r => r.category === category);
+  const maxOrder = inCat.reduce((m, r) => Math.max(m, r.sort_order || 0), 0);
+  const { error } = await sb.from("rate_card").insert({
+    category, label: "New line", fee: 0, sort_order: maxOrder + 10, active: true
+  });
+  if (error) { showPriceError(error.message); return; }
+  flashSaved(); renderRateCard();
+}
+
+async function addCategory() {
+  const input = document.getElementById("rc-new-cat");
+  const name = input.value.trim();
+  if (!name) { showPriceError("Enter a category name"); return; }
+  if (rcCache.some(r => r.category === name)) { showPriceError("That category already exists"); return; }
+  const { error } = await sb.from("rate_card").insert({
+    category: name, label: "New line", fee: 0, sort_order: 10, active: true
+  });
+  if (error) { showPriceError(error.message); return; }
+  input.value = "";
+  flashSaved(); renderRateCard();
+}
+
+// ---------- Sculptors panel (senior flag) ----------
+function setupSculptorsPanel() {
+  document.getElementById("sd-refresh").addEventListener("click", async () => {
+    await loadMembersCache();
+    renderSculptorsList();
+  });
+  renderSculptorsList();
+}
+
+function flashSdSaved() {
+  const el = document.getElementById("sd-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(flashSdSaved._t);
+  flashSdSaved._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+function showSdError(msg) {
+  const el = document.getElementById("sd-error");
+  el.textContent = msg;
+  clearTimeout(showSdError._t);
+  showSdError._t = setTimeout(() => { el.textContent = ""; }, 5000);
+}
+
+function renderSculptorsList() {
+  const tbody = document.getElementById("sd-tbody");
+  tbody.innerHTML = "";
+  if (!membersCache.length) {
+    tbody.innerHTML = "<tr><td colspan='4' class='rc-cat-empty'>No members.</td></tr>";
+    return;
+  }
+  for (const m of membersCache) {
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    tdName.textContent = m.display_name || m.email.split("@")[0];
+
+    const tdEmail = document.createElement("td");
+    tdEmail.textContent = m.email; tdEmail.style.color = "var(--muted)";
+
+    const tdRole = document.createElement("td");
+    const roleBadge = document.createElement("span");
+    roleBadge.className = "sd-badge"; roleBadge.textContent = m.role;
+    tdRole.appendChild(roleBadge);
+
+    const tdSenior = document.createElement("td");
+    const label = document.createElement("label");
+    label.className = "sd-senior";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = !!m.is_senior;
+    cb.addEventListener("change", async () => {
+      const { error } = await sb.from("members").update({ is_senior: cb.checked }).eq("email", m.email);
+      if (error) { showSdError(error.message); cb.checked = !cb.checked; return; }
+      m.is_senior = cb.checked;
+      flashSdSaved();
+    });
+    const txt = document.createElement("span");
+    txt.textContent = "Senior";
+    label.appendChild(cb); label.appendChild(txt);
+    tdSenior.appendChild(label);
+
+    tr.append(tdName, tdEmail, tdRole, tdSenior);
+    tbody.appendChild(tr);
+  }
+}
+
+// ---------- Admin workorders panel (Phase 5) ----------
+let awoState = {
+  period: null,
+  activeEmail: null,      // currently open sculptor tab
+  artists: [],            // [{ email, woId, status, count, total }]
+  detail: null,           // { artistEmail, workorder, items }
+  realtimeChannel: null,
+  suppressNextEcho: false,
+};
+
+function setupWorkordersPanel() {
+  // Period selector
+  const sel = document.getElementById("awo-period");
+  sel.innerHTML = "";
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label + (i === 0 ? " (current)" : "");
+    sel.appendChild(opt);
+  }
+  sel.value = sel.options[0].value;
+  awoState.period = sel.value;
+
+  sel.addEventListener("change", () => {
+    awoState.period = sel.value;
+    awoState.activeEmail = null;
+    loadWorkordersList();
+  });
+
+  document.getElementById("awo-refresh-all").addEventListener("click", refreshAllWorkorders);
+  document.getElementById("awo-validate").addEventListener("click", validateCurrentWorkorder);
+  document.getElementById("awo-revert").addEventListener("click", revertCurrentWorkorder);
+  document.getElementById("awo-admin-notes").addEventListener("blur", saveAdminNotes);
+  document.getElementById("awo-dayoff-start").addEventListener("change", saveAdminDayOff);
+  document.getElementById("awo-dayoff-end").addEventListener("change", saveAdminDayOff);
+
+  loadWorkordersList();
+}
+
+function awoFlashSaved(detail = false) {
+  const el = document.getElementById(detail ? "awo-detail-saved" : "awo-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showAwoError(msg, detail = false) {
+  const el = document.getElementById(detail ? "awo-detail-error" : "awo-error");
+  if (!msg) { el.style.display = "none"; return; }
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+// ---- TABS (one per active sculptor this period) ----
+async function loadWorkordersList() {
+  showAwoError("");
+  const period = awoState.period;
+
+  const { data: workorders, error: woErr } = await sb.from("workorders")
+    .select("id, artist_email, status, wo_number")
+    .eq("period", period);
+  if (woErr) { showAwoError(woErr.message); return; }
+
+  let items = [];
+  if (workorders.length > 0) {
+    const ids = workorders.map(w => w.id);
+    const { data: itemsData, error: itErr } = await sb.from("workorder_items")
+      .select("workorder_id, unit_price, included")
+      .in("workorder_id", ids);
+    if (itErr) { showAwoError(itErr.message); return; }
+    items = itemsData || [];
+  }
+
+  const agg = {};
+  for (const w of workorders) agg[w.id] = { count: 0, total: 0 };
+  for (const it of items) {
+    const a = agg[it.workorder_id];
+    if (!a) continue;
+    a.count++;
+    if (it.included) a.total += Number(it.unit_price || 0);
+  }
+
+  // A sculptor is "active" this period if their WO has at least one line.
+  awoState.artists = workorders
+    .filter(w => (agg[w.id]?.count || 0) > 0)
+    .map(w => ({ email: w.artist_email, woId: w.id, status: w.status,
+                 count: agg[w.id].count, total: agg[w.id].total }))
+    .sort((a, b) => memberDisplayName(a.email).localeCompare(memberDisplayName(b.email)));
+
+  renderAdminTabs();
+
+  if (awoState.artists.length === 0) {
+    document.getElementById("awo-sheet-wrap").style.display = "none";
+    document.getElementById("awo-empty-msg").style.display = "block";
+    if (awoState.realtimeChannel) { sb.removeChannel(awoState.realtimeChannel); awoState.realtimeChannel = null; }
+    awoState.detail = null;
+    return;
+  }
+  document.getElementById("awo-empty-msg").style.display = "none";
+  document.getElementById("awo-sheet-wrap").style.display = "block";
+
+  // Keep the current tab if it's still active, otherwise open the first.
+  let email = awoState.activeEmail;
+  if (!email || !awoState.artists.some(a => a.email === email)) email = awoState.artists[0].email;
+  openArtistDetail(email);
+}
+
+function renderAdminTabs() {
+  const bar = document.getElementById("awo-tabs");
+  bar.innerHTML = "";
+  for (const a of awoState.artists) {
+    const tab = document.createElement("button");
+    tab.className = "wo-tab" + (a.email === awoState.activeEmail ? " active" : "");
+    const dot = document.createElement("span");
+    dot.className = "status-dot " + a.status;
+    dot.title = a.status;
+    tab.appendChild(dot);
+    const name = document.createElement("span");
+    name.textContent = memberDisplayName(a.email);
+    tab.appendChild(name);
+    const tot = document.createElement("span");
+    tot.className = "wo-tab-total";
+    tot.textContent = formatEur(a.total);
+    tab.appendChild(tot);
+    tab.addEventListener("click", () => { if (a.email !== awoState.activeEmail) openArtistDetail(a.email); });
+    bar.appendChild(tab);
+  }
+}
+
+// Scan boards_data and group items by artist_email.
+async function scanBoardsByArtist() {
+  const { data, error } = await sb.from("boards_data").select("data").eq("id","default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  const byEmail = {};
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (item.type !== "image" && item.type !== "slot") continue;
+      if (!item.artist_email) continue;
+      const list = byEmail[item.artist_email] || (byEmail[item.artist_email] = []);
+      list.push({
+        source_board_id: board.id,
+        source_item_id:  item.id,
+        character_name:  item.label || null,
+        character_type:  item.characterType || null,
+        base_size:       item.baseSize || null,
+        tier:            item.tier || null,
+        default_included: item.status === "approved",
+      });
+    }
+  }
+  return byEmail;
+}
+
+async function refreshAllWorkorders() {
+  showAwoError("");
+  const btn = document.getElementById("awo-refresh-all");
+  btn.disabled = true; const old = btn.textContent;
+  btn.textContent = "Syncing…";
+  try {
+    const byEmail = await scanBoardsByArtist();
+    const emails = Object.keys(byEmail);
+    for (let i = 0; i < emails.length; i++) {
+      const email = emails[i];
+      btn.textContent = `Syncing… ${i+1}/${emails.length}`;
+      const { error } = await sb.rpc("admin_sync_workorder", {
+        p_artist_email: email,
+        p_period:       awoState.period,
+        p_items:        byEmail[email],
+      });
+      if (error) console.warn(`Sync failed for ${email}:`, error.message);
+    }
+    await loadWorkordersList();
+    awoFlashSaved();
+  } catch (e) {
+    showAwoError("Refresh failed: " + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+// ---- SELECTED SCULPTOR SHEET ----
+async function openArtistDetail(artistEmail) {
+  awoState.activeEmail = artistEmail;
+  renderAdminTabs();
+  showAwoError("", true);
+
+  const { data: wo, error: woErr } = await sb.from("workorders")
+    .select("*").eq("artist_email", artistEmail).eq("period", awoState.period).maybeSingle();
+  if (woErr) { showAwoError(woErr.message, true); return; }
+  if (!wo) { showAwoError("No workorder for this sculptor in this period.", true); return; }
+
+  const { data: items, error: itErr } = await sb.from("workorder_items")
+    .select("*").eq("workorder_id", wo.id).order("created_at");
+  if (itErr) { showAwoError(itErr.message, true); return; }
+
+  awoState.detail = { artistEmail, workorder: wo, items: items || [] };
+  renderArtistDetail();
+  subscribeArtistDetailRealtime();
+}
+
+// Refetch the open sheet + keep the tab badge in sync.
+async function reloadAdminDetail() {
+  const d = awoState.detail;
+  if (!d) return;
+  const [{ data: wo }, { data: items }] = await Promise.all([
+    sb.from("workorders").select("*").eq("id", d.workorder.id).maybeSingle(),
+    sb.from("workorder_items").select("*").eq("workorder_id", d.workorder.id).order("created_at"),
+  ]);
+  if (wo) d.workorder = wo;
+  d.items = items || [];
+  renderArtistDetail();
+  const a = awoState.artists.find(x => x.email === d.artistEmail);
+  if (a) {
+    a.status = d.workorder.status;
+    a.count  = d.items.length;
+    a.total  = d.items.filter(i => i.included).reduce((s, i) => s + Number(i.unit_price || 0), 0);
+    renderAdminTabs();
+  }
+}
+
+function adminCtx() {
+  const d = awoState.detail;
+  const locked = d.workorder.status !== "wip";
+  return {
+    mode: "admin",
+    locked,
+    wo: d.workorder,
+    flash:    () => awoFlashSaved(true),
+    error:    (m) => showAwoError(m, true),
+    suppress: () => { awoState.suppressNextEcho = true; },
+    reload:   reloadAdminDetail,
+  };
+}
+
+function renderArtistDetail() {
+  const d = awoState.detail;
+  if (!d) return;
+  renderAdminTabs();
+
+  const displayName = memberDisplayName(d.artistEmail);
+  document.getElementById("awo-detail-title").textContent =
+    `${displayName} — ${formatPeriodFr(d.workorder.period)}` +
+    (d.workorder.wo_number ? `  ·  ${d.workorder.wo_number}` : "");
+
+  const status = d.workorder.status;
+  const badge = document.getElementById("awo-detail-status");
+  badge.className = `status-cell ${status}`;
+  badge.textContent = status;
+
+  const locked = status !== "wip";
+  document.getElementById("awo-validate").style.display = locked ? "none" : "";
+  document.getElementById("awo-revert").style.display = (status === "validated") ? "" : "none";
+
+  // Sheet
+  const list = document.getElementById("awo-detail-items");
+  list.innerHTML = "";
+  list.appendChild(buildWoSheet(d.workorder, d.items, adminCtx()));
+
+  // Total
+  const total = d.items.filter(i => i.included).reduce((s, i) => s + Number(i.unit_price || 0), 0);
+  document.getElementById("awo-detail-total").textContent = formatEur(total);
+
+  // Day off
+  const ds = document.getElementById("awo-dayoff-start");
+  const de = document.getElementById("awo-dayoff-end");
+  if (document.activeElement !== ds) ds.value = d.workorder.day_off_start || "";
+  if (document.activeElement !== de) de.value = d.workorder.day_off_end || "";
+  ds.disabled = de.disabled = (status === "final_sent");
+
+  // Artist comments (read-only)
+  const noteBox = document.getElementById("awo-artist-notes");
+  if (d.workorder.notes_artist) {
+    noteBox.className = "ro-note";
+    noteBox.textContent = d.workorder.notes_artist;
+  } else {
+    noteBox.className = "ro-empty";
+    noteBox.textContent = "— no comments from artist —";
+  }
+
+  // Admin notes (editable, don't clobber focus)
+  const adminEl = document.getElementById("awo-admin-notes");
+  if (document.activeElement !== adminEl) adminEl.value = d.workorder.notes_admin || "";
+  adminEl.disabled = (status === "final_sent");
+}
+
+// ====== Shared workorder sheet (admin + sculptor) ======
+function mkWoCell(value, type) {
+  const e = document.createElement("input");
+  e.type = type;
+  e.className = "wo-cell";
+  e.value = value;
+  return e;
+}
+
+function buildWoSheet(wo, items, ctx) {
+  const wrap = document.createElement("div");
+
+  const table = document.createElement("table");
+  table.className = "wo-sheet";
+  table.innerHTML = `<thead><tr>
+    <th title="Include in total">✓</th>
+    <th class="l">Item</th>
+    <th class="l">Miniature type</th>
+    <th title="Sculpting (polygroup + STL exp.)">Sculpt</th>
+    <th title="Foundry work (polygroup + STL exp.)">Foundry</th>
+    <th title="Creation of a new pose">Pose</th>
+    <th title="Help / Retake">H/R</th>
+    <th class="l">Help / Retake comments</th>
+    <th title="Nb. of troopers">Nb</th>
+    <th>FEES</th>
+    <th></th>
+  </tr></thead>`;
+  const tbody = document.createElement("tbody");
+  if (!items.length) {
+    const hint = ctx.mode === "sculptor"
+      ? "No lines yet. Items you tag on the board appear here — or use “+ Add line”."
+      : "No lines yet. Use “Refresh all artists” to scan the boards, or “+ Add line”.";
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);font-style:italic;padding:18px">${hint}</td></tr>`;
+  } else {
+    for (const it of items) tbody.appendChild(buildWoRow(it, ctx));
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+
+  if (!ctx.locked) {
+    const add = document.createElement("button");
+    add.className = "wo-addline";
+    add.textContent = "+ Add line";
+    add.addEventListener("click", () => addWoLine(wo, ctx));
+    wrap.appendChild(add);
+  }
+  return wrap;
+}
+
+function buildWoRow(it, ctx) {
+  const isAdmin = ctx.mode === "admin";
+  const locked  = ctx.locked;
+  const tr = document.createElement("tr");
+  if (!it.included) tr.classList.add("excluded");
+
+  const save = async (patch) => {
+    ctx.suppress();
+    const { error } = await sb.from("workorder_items").update(patch).eq("id", it.id);
+    if (error) { ctx.error(error.message); return; }
+    ctx.flash();
+    await ctx.reload();
+  };
+
+  // Include
+  const tdIncl = document.createElement("td"); tdIncl.className = "c";
+  const incl = document.createElement("input"); incl.type = "checkbox";
+  incl.checked = !!it.included; incl.disabled = locked;
+  incl.title = it.included ? "Included in total" : "Excluded from total";
+  incl.addEventListener("change", () => save({ included: incl.checked }));
+  tdIncl.appendChild(incl); tr.appendChild(tdIncl);
+
+  // Item name
+  const tdName = document.createElement("td");
+  const nameIn = mkWoCell(it.character_name || "", "text");
+  nameIn.placeholder = "(unnamed)"; nameIn.disabled = locked;
+  nameIn.addEventListener("change", () => {
+    const v = nameIn.value.trim() || null;
+    if (v !== (it.character_name || null)) save({ character_name: v });
+  });
+  tdName.appendChild(nameIn); tr.appendChild(tdName);
+
+  // Miniature type
+  const tdType = document.createElement("td");
+  const sel = document.createElement("select"); sel.className = "wo-cell"; sel.disabled = locked;
+  const optE = document.createElement("option"); optE.value = ""; optE.textContent = "— type —"; sel.appendChild(optE);
+  let found = false;
+  for (const t of MINIATURE_TYPES) {
+    const o = document.createElement("option"); o.value = t; o.textContent = t;
+    if (t === it.miniature_type) found = true;
+    sel.appendChild(o);
+  }
+  if (it.miniature_type && !found) { // legacy value not in the list
+    const o = document.createElement("option"); o.value = it.miniature_type; o.textContent = it.miniature_type; sel.appendChild(o);
+  }
+  sel.value = it.miniature_type || "";
+  sel.addEventListener("change", () => save({ miniature_type: sel.value || null }));
+  tdType.appendChild(sel); tr.appendChild(tdType);
+
+  // Work-type checkboxes
+  const mkChk = (field) => {
+    const td = document.createElement("td"); td.className = "c";
+    const c = document.createElement("input"); c.type = "checkbox";
+    c.checked = !!it[field]; c.disabled = locked;
+    c.addEventListener("change", () => save({ [field]: c.checked }));
+    td.appendChild(c); return td;
+  };
+  tr.appendChild(mkChk("work_sculpting"));
+  tr.appendChild(mkChk("work_foundry"));
+  tr.appendChild(mkChk("work_new_pose"));
+  tr.appendChild(mkChk("work_help_retake"));
+
+  // Help/Retake comments
+  const tdHR = document.createElement("td");
+  const hr = mkWoCell(it.help_retake_comments || "", "text"); hr.disabled = locked;
+  hr.addEventListener("change", () => {
+    const v = hr.value.trim() || null;
+    if (v !== (it.help_retake_comments || null)) save({ help_retake_comments: v });
+  });
+  tdHR.appendChild(hr); tr.appendChild(tdHR);
+
+  // Nb troopers
+  const tdNb = document.createElement("td"); tdNb.className = "c";
+  const nb = mkWoCell(it.nb_troopers ?? 1, "number");
+  nb.min = "0"; nb.step = "1"; nb.style.width = "52px"; nb.style.textAlign = "center"; nb.disabled = locked;
+  nb.addEventListener("change", () => {
+    let v = parseInt(nb.value, 10);
+    if (isNaN(v) || v < 0) { nb.value = it.nb_troopers ?? 1; return; }
+    if (v !== Number(it.nb_troopers)) save({ nb_troopers: v });
+  });
+  tdNb.appendChild(nb); tr.appendChild(tdNb);
+
+  // FEES (auto from rate card; admin can override)
+  const tdFee = document.createElement("td");
+  const feeWrap = document.createElement("div"); feeWrap.className = "wo-fee";
+  const feeIn = mkWoCell(Number(it.unit_price || 0), "number");
+  feeIn.step = "0.01"; feeIn.min = "0";
+  feeIn.disabled = locked || !isAdmin;          // sculptor never sets the fee
+  feeIn.title = isAdmin ? "Override the auto fee" : "Computed from the rate card";
+  feeIn.addEventListener("change", () => {
+    const v = parseFloat(feeIn.value);
+    if (isNaN(v) || v < 0) { feeIn.value = it.unit_price; return; }
+    save({ unit_price: v, fee_overridden: true });
+  });
+  feeWrap.appendChild(feeIn);
+  const fbadge = document.createElement("span");
+  fbadge.className = "wo-badge" + (it.fee_overridden ? " override" : "");
+  fbadge.textContent = it.fee_overridden ? "override" : "auto";
+  feeWrap.appendChild(fbadge);
+  if (isAdmin && it.fee_overridden && !locked) {
+    const rst = document.createElement("button");
+    rst.className = "wo-reset"; rst.textContent = "↺"; rst.title = "Recompute from rate card";
+    rst.addEventListener("click", () => save({ fee_overridden: false }));
+    feeWrap.appendChild(rst);
+  }
+  tdFee.appendChild(feeWrap); tr.appendChild(tdFee);
+
+  // Delete (admin: any line; sculptor: their manual lines only)
+  const tdDel = document.createElement("td"); tdDel.className = "c";
+  if (!locked && (isAdmin || it.manual)) {
+    const del = document.createElement("button");
+    del.className = "wo-del"; del.textContent = "×";
+    del.title = it.manual ? "Delete this manual line"
+                          : "Remove this line (returns on the next board refresh)";
+    del.addEventListener("click", async () => {
+      if (!confirm("Delete this line?")) return;
+      ctx.suppress();
+      const { error } = await sb.from("workorder_items").delete().eq("id", it.id);
+      if (error) { ctx.error(error.message); return; }
+      ctx.flash();
+      await ctx.reload();
+    });
+    tdDel.appendChild(del);
+  }
+  tr.appendChild(tdDel);
+
+  return tr;
+}
+
+async function addWoLine(wo, ctx) {
+  ctx.suppress();
+  const { error } = await sb.from("workorder_items").insert({
+    workorder_id: wo.id,
+    character_name: "New line",
+    miniature_type: null,
+    manual: true,
+    included: true,
+    work_sculpting: true,
+    nb_troopers: 1,
+  });
+  if (error) { ctx.error(error.message); return; }
+  ctx.flash();
+  await ctx.reload();
+}
+
+async function saveAdminNotes() {
+  if (!awoState.detail) return;
+  const value = document.getElementById("awo-admin-notes").value;
+  const trimmed = value.trim() || null;
+  if ((awoState.detail.workorder.notes_admin || null) === trimmed) return;
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ notes_admin: trimmed }).eq("id", awoState.detail.workorder.id);
+  if (error) { showAwoError(error.message, true); return; }
+  awoState.detail.workorder.notes_admin = trimmed;
+  awoFlashSaved(true);
+}
+
+async function saveAdminDayOff() {
+  if (!awoState.detail) return;
+  const start = document.getElementById("awo-dayoff-start").value || null;
+  const end   = document.getElementById("awo-dayoff-end").value || null;
+  const wo = awoState.detail.workorder;
+  if ((wo.day_off_start || null) === start && (wo.day_off_end || null) === end) return;
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ day_off_start: start, day_off_end: end }).eq("id", wo.id);
+  if (error) { showAwoError(error.message, true); return; }
+  wo.day_off_start = start; wo.day_off_end = end;
+  awoFlashSaved(true);
+}
+
+async function validateCurrentWorkorder() {
+  if (!awoState.detail) return;
+  if (!confirm("Validate this workorder?\nThis locks sculptor edits and assigns a sequential WO number.")) return;
+  const btn = document.getElementById("awo-validate");
+  btn.disabled = true; const old = btn.textContent;
+  btn.textContent = "Validating…";
+  const { data, error } = await sb.rpc("validate_workorder", { p_wo_id: awoState.detail.workorder.id });
+  btn.disabled = false; btn.textContent = old;
+  if (error) { showAwoError(error.message, true); return; }
+  await reloadAdminDetail();
+  awoFlashSaved(true);
+  alert(`Workorder ${data} validated. Sculptor edits are now locked.`);
+}
+
+async function revertCurrentWorkorder() {
+  if (!awoState.detail) return;
+  if (!confirm("Re-open this workorder for edits?\nThe WO number is kept (no renumbering).")) return;
+  const { error } = await sb.rpc("revert_workorder_to_wip", { p_wo_id: awoState.detail.workorder.id });
+  if (error) { showAwoError(error.message, true); return; }
+  await reloadAdminDetail();
+  awoFlashSaved(true);
+}
+
+function subscribeArtistDetailRealtime() {
+  if (awoState.realtimeChannel) {
+    sb.removeChannel(awoState.realtimeChannel);
+    awoState.realtimeChannel = null;
+  }
+  if (!awoState.detail) return;
+  const woId = awoState.detail.workorder.id;
+  awoState.realtimeChannel = sb
+    .channel(`admin-wo-${woId}`)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorders", filter: `id=eq.${woId}` },
+        () => { if (awoState.suppressNextEcho) { awoState.suppressNextEcho = false; return; } reloadAdminDetail(); })
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorder_items", filter: `workorder_id=eq.${woId}` },
+        () => { if (awoState.suppressNextEcho) { awoState.suppressNextEcho = false; return; } reloadAdminDetail(); })
+    .subscribe();
+}
+
+// ---------- PDF generation (Phase 6) ----------
+// pdfmake is loaded lazily — only when the admin opens the PDF preview the
+// first time. ~290KB gzipped, no point pulling it on every page load.
+let pdfMakeLoaded = false;
+async function loadPdfMake() {
+  if (pdfMakeLoaded && window.pdfMake) return true;
+  const main = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js");
+  if (!main || !window.pdfMake) return false;
+  const fonts = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js");
+  pdfMakeLoaded = main && fonts && !!window.pdfMake;
+  return pdfMakeLoaded;
+}
+function loadScript(src) {
+  return new Promise(resolve => {
+    const s = document.createElement("script");
+    s.src = src; s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(false), 12000);
+  });
+}
+
+// Fetch an image (Storage URL or data URL), resize to a max bounding box,
+// and return a JPEG data URL suitable for embedding into pdfmake.
+async function fetchAndResizeImage(url, maxDim = 160) {
+  let blob;
+  if (url.startsWith("data:")) {
+    const resp = await fetch(url);
+    blob = await resp.blob();
+  } else {
+    const resp = await fetch(url, { mode: "cors" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    blob = await resp.blob();
+  }
+  const bmp = await createImageBitmap(blob);
+  const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
+  const w = Math.max(1, Math.round(bmp.width  * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  // White background so transparent PNGs don't show black on the PDF page.
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+// Look up each workorder_item in boards_data and resolve its main image URL.
+// Returns a map { item_id -> dataUrl } (missing entries = no thumbnail).
+async function loadThumbnailsForCurrentWO() {
+  if (!awoState.detail) return {};
+  const { data, error } = await sb.from("boards_data").select("data").eq("id","default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  // Index source items for O(1) lookup
+  const sourceMap = new Map(); // "boardId:itemId" -> item.src
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (!item.src) continue;
+      sourceMap.set(`${board.id}:${item.id}`, item.src);
+    }
+  }
+  // Resolve thumbnails in parallel — limited concurrency would be safer for
+  // very large WOs, but a typical month has <50 items so a flat Promise.all
+  // is fine.
+  const out = {};
+  const tasks = awoState.detail.items.map(async (it) => {
+    const key = `${it.source_board_id}:${it.source_item_id}`;
+    const src = sourceMap.get(key);
+    if (!src) return;
+    try {
+      out[it.id] = await fetchAndResizeImage(src, 160);
+    } catch (e) {
+      console.warn("Thumbnail fetch failed for item", it.id, e);
+    }
+  });
+  await Promise.all(tasks);
+  return out;
+}
+
+let pdfBlobUrl = null;
+let pdfFileName = "workorder.pdf";
+
+async function openPdfPreview() {
+  if (!awoState.detail) return;
+  if (awoState.detail.items.length === 0) {
+    showAwoError("No items in this workorder — nothing to render.", true);
+    return;
+  }
+  // Open modal in loading state
+  document.getElementById("pdf-modal").classList.add("visible");
+  document.getElementById("pdf-loading").style.display = "";
+  document.getElementById("pdf-iframe").style.display = "none";
+  document.getElementById("pdf-status").textContent = "Loading pdfmake…";
+
+  const ok = await loadPdfMake();
+  if (!ok) {
+    document.getElementById("pdf-status").textContent = "Error";
+    document.getElementById("pdf-loading").textContent = "Failed to load pdfmake CDN.";
+    return;
+  }
+
+  document.getElementById("pdf-status").textContent = "Fetching thumbnails…";
+  let thumbs;
+  try {
+    thumbs = await loadThumbnailsForCurrentWO();
+  } catch (e) {
+    console.warn("Thumbnail load error", e);
+    thumbs = {};
+  }
+
+  document.getElementById("pdf-status").textContent = "Rendering…";
+  const doc = buildPdfDoc(awoState.detail, thumbs);
+  pdfFileName = pdfFileNameFor(awoState.detail.workorder);
+
+  pdfMake.createPdf(doc).getBlob(blob => {
+    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    pdfBlobUrl = URL.createObjectURL(blob);
+    const iframe = document.getElementById("pdf-iframe");
+    iframe.src = pdfBlobUrl;
+    iframe.style.display = "block";
+    document.getElementById("pdf-loading").style.display = "none";
+    document.getElementById("pdf-status").textContent = "Ready";
+  });
+}
+
+function pdfFileNameFor(wo) {
+  const ref = wo.wo_number || `WO_${wo.period}_${memberDisplayName(wo.artist_email)}`;
+  return ref.replace(/[\\/:*?"<>|]/g, "_") + ".pdf";
+}
+
+function closePdfModal() {
+  document.getElementById("pdf-modal").classList.remove("visible");
+  if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
+  document.getElementById("pdf-iframe").src = "";
+}
+
+function downloadCurrentPdf() {
+  if (!pdfBlobUrl) return;
+  const a = document.createElement("a");
+  a.href = pdfBlobUrl;
+  a.download = pdfFileName;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// Builds the pdfmake document definition for a workorder.
+// French layout, neutral branding (Phase 6). Logo + company block to come.
+function buildPdfDoc(detail, thumbs) {
+  const { workorder, items, artistEmail } = detail;
+  const artistName = memberDisplayName(artistEmail);
+  const periodLabel = formatPeriodFr(workorder.period);
+  const dateLabel = new Date().toLocaleDateString("fr-FR",
+    { day: "numeric", month: "long", year: "numeric" });
+
+  // Table body. Header row + one row per item. Excluded items are skipped
+  // for the official PDF (they wouldn't be billed).
+  const includedItems = items.filter(it => it.included);
+  const body = [
+    [
+      { text: "", style: "th" },
+      { text: "Pièce",      style: "th" },
+      { text: "Type",       style: "th" },
+      { text: "Prix",       style: "th", alignment: "right" },
+    ],
+    ...includedItems.map(it => {
+      const thumb = thumbs[it.id];
+      const meta = [];
+      if (it.base_size) meta.push(it.base_size);
+      if (it.tier)      meta.push(it.tier);
+      const subStack = [
+        { text: it.character_name || "(sans nom)", bold: true },
+      ];
+      if (meta.length) {
+        subStack.push({ text: meta.join(" · "), color: "#777", fontSize: 9, margin: [0,1,0,0] });
+      }
+      if (it.notes) {
+        subStack.push({ text: "Note : " + it.notes, italics: true, color: "#666", fontSize: 9, margin: [0,3,0,0] });
+      }
+      return [
+        thumb
+          ? { image: thumb, width: 50, height: 50, fit: [50, 50], margin: [0,2,0,2] }
+          : { text: "—", color: "#aaa", alignment: "center", margin: [0,18,0,0] },
+        { stack: subStack, margin: [0,2,0,2] },
+        { text: TYPE_LABEL[it.character_type] || (it.character_type || "—"), color: "#555", margin: [0,18,0,0] },
+        { text: formatEur(Number(it.unit_price || 0)), alignment: "right", margin: [0,18,0,0] },
+      ];
+    })
+  ];
+
+  const total = includedItems.reduce((s, it) => s + Number(it.unit_price || 0), 0);
+  const woNumber = workorder.wo_number || "(non validé)";
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 50, 40, 60],
+    defaultStyle: { font: "Roboto", fontSize: 10, color: "#222" },
+
+    content: [
+      // Header block (neutral, no logo yet — Phase 8 polish)
+      {
+        columns: [
+          { stack: [
+              { text: "RAGING HEROES", bold: true, fontSize: 14, color: "#111" },
+              { text: "Bon de travail", color: "#666", fontSize: 10, margin: [0,2,0,0] },
+            ]
+          },
+          { stack: [
+              { text: woNumber, bold: true, alignment: "right", fontSize: 14, color: "#111" },
+              { text: "Émis le " + dateLabel, alignment: "right", color: "#666", fontSize: 10, margin: [0,2,0,0] },
+            ], width: "*"
+          }
+        ]
+      },
+      // Artist + period block
+      {
+        margin: [0, 24, 0, 16],
+        columns: [
+          { stack: [
+              { text: "ARTISTE",  color: "#888", fontSize: 8, characterSpacing: 1 },
+              { text: artistName, fontSize: 12, bold: true, margin: [0,2,0,0] },
+              { text: artistEmail, color: "#888", fontSize: 9, margin: [0,1,0,0] },
+            ]
+          },
+          { stack: [
+              { text: "PÉRIODE",   color: "#888", fontSize: 8, characterSpacing: 1, alignment: "right" },
+              { text: periodLabel, fontSize: 12, bold: true, margin: [0,2,0,0], alignment: "right" },
+            ]
+          }
+        ]
+      },
+      // Items table
+      {
+        table: { widths: [60, "*", 80, 80], headerRows: 1, body },
+        layout: {
+          hLineWidth: (i) => (i === 0 || i === 1) ? 0.8 : 0.3,
+          hLineColor: () => "#cccccc",
+          vLineWidth: () => 0,
+          paddingTop:    () => 6,
+          paddingBottom: () => 6,
+          paddingLeft:   (i) => i === 0 ? 0 : 6,
+          paddingRight:  (i, node) => i === node.table.widths.length - 1 ? 0 : 6,
+        }
+      },
+      // Total row
+      {
+        margin: [0, 12, 0, 0],
+        table: {
+          widths: ["*", 80],
+          body: [[
+            { text: "TOTAL", bold: true, alignment: "right", color: "#444", fontSize: 11 },
+            { text: formatEur(total), bold: true, alignment: "right", fontSize: 13, color: "#111" }
+          ]]
+        },
+        layout: "noBorders"
+      },
+      // Artist global notes
+      workorder.notes_artist
+        ? {
+            margin: [0, 28, 0, 0],
+            stack: [
+              { text: "NOTES DE L'ARTISTE", color: "#888", fontSize: 8, characterSpacing: 1 },
+              { text: workorder.notes_artist, italics: true, color: "#444", margin: [0, 6, 0, 0], fontSize: 10 }
+            ]
+          }
+        : null,
+    ].filter(Boolean),
+
+    styles: {
+      th: { bold: true, color: "#888", fontSize: 8, characterSpacing: 1 }
+    },
+
+    footer: (currentPage, pageCount) => ({
+      margin: [40, 0, 40, 0],
+      columns: [
+        { text: `Raging Heroes — ${woNumber}`, color: "#999", fontSize: 8 },
+        { text: `${currentPage} / ${pageCount}`, alignment: "right", color: "#999", fontSize: 8 }
+      ]
+    })
+  };
+}
+
+function formatPeriodFr(p) {
+  // "2026-05" -> "mai 2026"
+  if (!/^\d{4}-\d{2}$/.test(p)) return p;
+  const [y, m] = p.split("-");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return d.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+}
+
+// ---------- Wiring ----------
+document.getElementById("auth-btn").addEventListener("click", signIn);
+document.getElementById("auth-password").addEventListener("keydown", e => {
+  if (e.key === "Enter") signIn();
+});
+document.getElementById("auth-email").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("auth-password").focus();
+});
+document.getElementById("btn-board").addEventListener("click", () => {
+  window.location.href = "index.html";
+});
+
+// PDF modal wiring (only meaningful when the admin view is loaded)
+const pdfBtn = document.getElementById("awo-pdf");
+if (pdfBtn) pdfBtn.addEventListener("click", openPdfPreview);
+const pdfClose = document.getElementById("pdf-close");
+if (pdfClose) pdfClose.addEventListener("click", closePdfModal);
+const pdfBackdrop = document.getElementById("pdf-backdrop");
+if (pdfBackdrop) pdfBackdrop.addEventListener("click", closePdfModal);
+const pdfDownload = document.getElementById("pdf-download");
+if (pdfDownload) pdfDownload.addEventListener("click", downloadCurrentPdf);
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("pdf-modal").classList.contains("visible")) {
+    closePdfModal();
+  }
+});
+document.getElementById("btn-logout").addEventListener("click", () => {
+  if (confirm("Log out?")) logout();
+});
+
+// ---------- Init ----------
+async function init() {
+  const ok = await initSupabase();
+  if (!ok) return;
+  const restored = await tryRestoreSession();
+  if (restored) {
+    hideAuthScreen();
+    await boot();
+  } else {
+    showAuthScreen();
+  }
+}
+init();
+</script>
+</body>
+</html>
