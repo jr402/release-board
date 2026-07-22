@@ -152,8 +152,8 @@
     flex-shrink: 0;
   }
   .btn-add-tab:hover { color: var(--text); border-color: var(--accent); }
-  #viewport.panning { cursor: grabbing; }
   #viewport.space   { cursor: grab; }
+  #viewport.panning { cursor: grabbing; }  /* wins when both classes are set (space held + dragging) */
   #world {
     position: absolute; top: 0; left: 0;
     transform-origin: 0 0;
