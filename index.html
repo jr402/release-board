@@ -624,10 +624,10 @@
   }
   .note-btn:hover { background: var(--panel-2); color: var(--text); }
   .note-btn.has-note {
-    background: #fff7c2; color: #2a2a2a;
-    border-color: #fff7c2;
+    background: var(--note-c, #fff7c2); color: #2a2a2a;
+    border-color: var(--note-c, #fff7c2);
   }
-  .note-btn.has-note:hover { background: #fdf3a8; }
+  .note-btn.has-note:hover { background: var(--note-c, #fff7c2); filter: brightness(.93); }
 
   /* Note preview tooltip — shown on hover over a note button */
   #note-tip {
@@ -683,6 +683,18 @@
     color: var(--muted); font-size: 10px;
     margin-top: 6px; text-align: right;
   }
+  /* Colour swatches inside the note popup */
+  #note-popup .np-colors {
+    display: flex; gap: 7px; margin-bottom: 8px; align-items: center;
+  }
+  #note-popup .np-swatch {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer; padding: 0;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.28);
+    transition: transform .1s;
+  }
+  #note-popup .np-swatch:hover { transform: scale(1.12); }
+  #note-popup .np-swatch.selected { border-color: var(--text); }
 
   /* Filter row in topbar */
   .title-row { display: flex; align-items: center; gap: 16px; }
@@ -1671,6 +1683,7 @@
     <span class="np-title" id="np-title">Note</span>
     <button class="np-close" id="np-close" title="Close (Esc)">×</button>
   </div>
+  <div id="np-colors" class="np-colors"></div>
   <textarea id="np-textarea" placeholder="Write your note..."></textarea>
   <div class="np-hint">Saved automatically</div>
 </div>
@@ -2604,18 +2617,67 @@ function buildPillsBar(item) {
   }
   return hasAny ? bar : null;
 }
+// ---------- Note colours ----------
+const NOTE_COLORS = { yellow:"#fff7c2", red:"#ffc4c4", orange:"#ffd9a8", green:"#bfe8c4", blue:"#bcdcf5", purple:"#e2c9f5" };
+const NOTE_COLOR_ORDER = ["yellow","red","orange","green","blue","purple"];
+const NOTE_COLOR_DEFAULT = "yellow";
+function noteColorHex(item){ return NOTE_COLORS[item && item.noteColor] || NOTE_COLORS[NOTE_COLOR_DEFAULT]; }
+// Build the swatch row once (note popup exists in the static HTML above)
+(function buildNoteColorRow(){
+  const row = document.getElementById("np-colors");
+  if (!row) return;
+  for (const key of NOTE_COLOR_ORDER){
+    const sw = document.createElement("button");
+    sw.className = "np-swatch";
+    sw.dataset.color = key;
+    sw.style.background = NOTE_COLORS[key];
+    sw.title = key;
+    sw.addEventListener("mousedown", e => e.stopPropagation());
+    sw.addEventListener("click", e => { e.stopPropagation(); pickNoteColor(key); });
+    row.appendChild(sw);
+  }
+})();
+function highlightNoteSwatch(colorKey){
+  const row = document.getElementById("np-colors");
+  if (!row) return;
+  const active = colorKey || NOTE_COLOR_DEFAULT;
+  row.querySelectorAll(".np-swatch").forEach(sw => sw.classList.toggle("selected", sw.dataset.color === active));
+}
+function pickNoteColor(colorKey){
+  const item = getItem(notePopupItemId);
+  if (!item || !canEdit()) return;
+  if (notePopupTarget === "altNote"){
+    if (!item.altNode) item.altNode = { label:"", status:null, note:"", src:null, archive:[] };
+    item.altNode.noteColor = colorKey;
+  } else {
+    item.noteColor = colorKey;
+    // Re-render the node so the icon repaints reliably (a plain inline var
+    // update can leave a stale paint on some engines). renderItem sets --note-c.
+    const el = world.querySelector(`.item[data-id="${item.id}"]`);
+    if (el && typeof refreshItemDom === "function") {
+      refreshItemDom(item);
+    } else {
+      const btn = world.querySelector(`.item[data-id="${item.id}"] .note-btn`);
+      if (btn) btn.style.setProperty("--note-c", NOTE_COLORS[colorKey] || NOTE_COLORS[NOTE_COLOR_DEFAULT]);
+    }
+  }
+  highlightNoteSwatch(colorKey);
+  save();
+}
+
 // ---------- Note popup ----------
 let notePopupItemId = null;
 let notePopupTarget = "note"; // "note" or "altNote" — which field to read/write
 
 // ---------- Note hover tooltip ----------
 let noteTipTimer = null;
-function showNoteTip(content, anchorEl) {
+function showNoteTip(content, anchorEl, colorHex) {
   if (!content) return;
   if (noteTipTimer) { clearTimeout(noteTipTimer); noteTipTimer = null; }
   noteTipTimer = setTimeout(() => {
     const tip = document.getElementById("note-tip");
     tip.textContent = content;
+    tip.style.background = colorHex || "";  // match the note colour; "" falls back to CSS default
     tip.classList.add("visible");
     const rect = anchorEl.getBoundingClientRect();
     const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -2634,8 +2696,8 @@ function hideNoteTip() {
   if (noteTipTimer) { clearTimeout(noteTipTimer); noteTipTimer = null; }
   document.getElementById("note-tip").classList.remove("visible");
 }
-function wireNoteHover(btn, getContent) {
-  btn.addEventListener("mouseenter", () => showNoteTip(getContent(), btn));
+function wireNoteHover(btn, getContent, getColor) {
+  btn.addEventListener("mouseenter", () => showNoteTip(getContent(), btn, getColor && getColor()));
   btn.addEventListener("mouseleave", hideNoteTip);
 }
 
@@ -2651,6 +2713,13 @@ function openNotePopup(item, anchorEl, target = "note") {
   const value = target === "altNote" ? (item.altNode?.note || "") : (item.note || "");
   ta.value = value;
   ta.disabled = !canEdit();
+  // Colour swatches: only for node notes (alt notes live in a modal header)
+  const colorsRow = document.getElementById("np-colors");
+  if (colorsRow){
+    colorsRow.style.display = target === "altNote" ? "none" : "flex";
+    const cur = target === "altNote" ? (item.altNode && item.altNode.noteColor) : item.noteColor;
+    highlightNoteSwatch(cur);
+  }
   // Position popup near the clicked button
   popup.classList.add("visible");
   const rect = anchorEl.getBoundingClientRect();
@@ -2696,6 +2765,7 @@ document.getElementById("np-textarea").addEventListener("input", e => {
     const btn = world.querySelector(`.item[data-id="${item.id}"] .note-btn`);
     if (btn) {
       btn.classList.toggle("has-note", !!value);
+      btn.style.setProperty("--note-c", noteColorHex(item));
       btn.title = value ? `Note: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}` : "Add note";
     }
     // Highlight the version-modal note btn if open on this item
@@ -2812,6 +2882,7 @@ function buildSideTools(item) {
   // Note button (always shown)
   const noteBtn = document.createElement("div");
   noteBtn.className = "note-btn" + (item.note ? " has-note" : "");
+  if (item.note) noteBtn.style.setProperty("--note-c", noteColorHex(item));
   noteBtn.textContent = "📝";
   noteBtn.title = item.note ? "" : "Add note";   // empty title when note exists so custom tip handles it
   noteBtn.addEventListener("mousedown", e => e.stopPropagation());
@@ -2820,7 +2891,7 @@ function buildSideTools(item) {
     hideNoteTip();
     openNotePopup(item, noteBtn);
   });
-  wireNoteHover(noteBtn, () => item.note);
+  wireNoteHover(noteBtn, () => item.note, () => noteColorHex(item));
   wrap.appendChild(noteBtn);
 
   // ✨ Name-gen button — opens AI name suggestion panel
@@ -3331,6 +3402,7 @@ function wireField(id, prop, opts = {}) {
       const btn = world.querySelector(`.item[data-id="${it.id}"] .note-btn`);
       if (btn) {
         btn.classList.toggle("has-note", !!it.note);
+        btn.style.setProperty("--note-c", noteColorHex(it));
         btn.title = it.note ? `Note: ${it.note.slice(0, 80)}${it.note.length > 80 ? "…" : ""}` : "Add note";
       }
       // Sync popup textarea if it's open on this item
