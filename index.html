@@ -3679,6 +3679,21 @@ viewport.addEventListener("mousedown", e => {
     e.preventDefault();
   }
 });
+// Space+drag (or middle-click) must ALWAYS pan — even when the pointer starts
+// on an image, pill or button whose own mousedown handler calls
+// stopPropagation(). Catch it in the CAPTURE phase on the viewport so it wins
+// before any child (node) handler can start a drag. Keeps panning consistent
+// no matter what's under the cursor.
+viewport.addEventListener("mousedown", e => {
+  if (zoomBox) return;
+  if (e.button === 1 || (e.button === 0 && spaceDown)) {
+    pan = { sx: e.clientX, sy: e.clientY, ox: cb().view.x, oy: cb().view.y };
+    viewport.classList.add("panning");
+    cancelHoverTip();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
 document.addEventListener("mousemove", e => {
   if (pan) {
     cb().view.x = pan.ox + (e.clientX - pan.sx);
