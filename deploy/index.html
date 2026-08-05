@@ -2223,6 +2223,16 @@ async function cloudLoad() {
   return true;
 }
 
+// True while the user is typing somewhere (note popup, sticky note
+// contenteditable, inspector fields, release title…). Remote re-renders during
+// text entry destroy the field being edited and lose unsaved keystrokes.
+function isTextEditing() {
+  const ae = document.activeElement;
+  return !!ae && (ae.isContentEditable || ae.tagName === "TEXTAREA" || ae.tagName === "INPUT");
+}
+// When the user leaves a text field, catch up on anything we skipped meanwhile.
+document.addEventListener("focusout", () => setTimeout(() => refetchRemote(), 400));
+
 // Re-pull the board from Supabase and re-render if it changed. Used after a
 // sync conflict, when the tab regains focus/network, when the realtime channel
 // (re)subscribes, and when a realtime payload arrives truncated — any moment
@@ -2231,7 +2241,7 @@ let refetchInFlight = false;
 async function refetchRemote() {
   if (!sb || !currentUser) return;
   // Don't clobber work the user is in the middle of
-  if (savePendingTimer || drag || resize || pillDrag || pan) return;
+  if (savePendingTimer || drag || resize || pillDrag || pan || isTextEditing()) return;
   if (refetchInFlight) return;
   refetchInFlight = true;
   try {
@@ -2273,7 +2283,9 @@ function subscribeRealtime() {
           // here and left isApplyingRemote stuck at true, silently killing save().)
           if (!payload.new?.data) { refetchRemote(); return; }
           if (payload.new.updated_by === currentUser?.email) return; // our own echo
-          if (drag || resize || pillDrag || pan) return; // don't disrupt active interactions
+          // Don't disrupt active interactions or text entry — skipped updates
+          // are caught up by refetchRemote on focusout/focus/conflict.
+          if (drag || resize || pillDrag || pan || isTextEditing()) return;
           lastSeenUpdatedAt = payload.new.updated_at || lastSeenUpdatedAt;
           try {
             isApplyingRemote = true;
