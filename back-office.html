@@ -1,0 +1,2290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Back office — Raging Heroes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ---------- Reset + base palette (mirrors index.html) ---------- */
+  :root {
+    --bg:      #1a1a1a;
+    --panel:   #242424;
+    --panel-2: #2e2e2e;
+    --text:    #eaeaea;
+    --muted:   #8a8a8a;
+    --accent:  #4f8cff;
+    --ok:      #66c46b;
+    --warn:    #f1c40f;
+    --danger:  #e0566b;
+    --border:  rgba(255,255,255,.1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+               font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               min-height: 100vh; }
+  a { color: var(--accent); }
+  button { font: inherit; }
+
+  /* ---------- Topbar ---------- */
+  #topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  #topbar h1 {
+    margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .02em;
+  }
+  #topbar h1 .sub { color: var(--muted); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  #user-menu { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #user-menu .user-info { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  #user-menu .user-email { color: var(--text); font-weight: 600; }
+  #user-menu .role-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  #user-menu .role-badge.admin  { background: #f1c40f; color: #2a2a2a; }
+  #user-menu .role-badge.editor { background: #4f8cff; color: white; }
+  #user-menu .role-badge.reader { background: var(--panel-2); color: var(--muted); }
+  #user-menu button {
+    background: transparent; color: var(--text);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 4px;
+    padding: 4px 10px; cursor: pointer; font-size: 11px;
+  }
+  #user-menu button:hover { border-color: rgba(255,255,255,.15); }
+
+  /* ---------- Main content ---------- */
+  #main { padding: 18px 22px; max-width: 1100px; margin: 0 auto; }
+
+  /* Admin: tabs */
+  #admin-tabs {
+    display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  #admin-tabs button {
+    background: transparent; color: var(--muted);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 8px 16px; cursor: pointer; font-size: 12px;
+    margin-bottom: -1px;
+  }
+  #admin-tabs button:hover { color: var(--text); }
+  #admin-tabs button.active {
+    color: var(--text); border-bottom-color: var(--accent);
+  }
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; }
+
+  /* Placeholder cards */
+  .placeholder {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 22px;
+    color: var(--muted); font-size: 13px; line-height: 1.6;
+  }
+  .placeholder h2 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
+  .placeholder code {
+    background: var(--bg); padding: 1px 6px; border-radius: 3px;
+    font-size: 11px; color: var(--text);
+  }
+
+  /* ---------- Pricing panel ---------- */
+  .pp-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .pp-header h2 { margin: 0; font-size: 14px; }
+  .pp-header label {
+    color: var(--muted); font-size: 11px;
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .pp-header .spacer { flex: 1; }
+  .pp-header button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .pp-header button:hover { border-color: rgba(255,255,255,.15); }
+
+  .pp-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .pp-table th, .pp-table td {
+    padding: 8px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle;
+  }
+  .pp-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .pp-table tr:last-child td { border-bottom: none; }
+  .pp-table tr.inactive td { opacity: .5; }
+  .pp-table .pp-cell-input {
+    background: transparent; color: var(--text);
+    border: 1px solid transparent; border-radius: 3px;
+    padding: 3px 6px; font: inherit; font-size: 12px;
+    width: 100%;
+  }
+  .pp-table .pp-cell-input:hover  { border-color: rgba(255,255,255,.08); }
+  .pp-table .pp-cell-input:focus  { border-color: var(--accent); outline: none; background: var(--bg); }
+  .pp-table .pp-cell-input.price  { text-align: right; width: 100px; }
+  .pp-table .pp-row-actions {
+    display: flex; gap: 4px; justify-content: flex-end;
+  }
+  .pp-table .pp-row-actions button {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 8px; font-size: 10px; cursor: pointer;
+  }
+  .pp-table .pp-row-actions button:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+  .pp-table .pp-row-actions button.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .pp-table .pp-row-actions button.ok { color: var(--ok); }
+
+  .pp-empty {
+    padding: 30px; text-align: center; color: var(--muted);
+    font-size: 12px; font-style: italic;
+  }
+
+  .pp-add-form {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+    display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  }
+  .pp-add-form > div { display: flex; flex-direction: column; gap: 4px; }
+  .pp-add-form label {
+    color: var(--muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .pp-add-form input, .pp-add-form select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 8px; font: inherit; font-size: 12px;
+  }
+  .pp-add-form .price-input { width: 90px; text-align: right; }
+  .pp-add-form .notes-input { width: 180px; }
+  .pp-add-form button {
+    background: var(--accent); color: white; border: none;
+    border-radius: 4px; padding: 7px 14px; font-weight: 600;
+    cursor: pointer; font-size: 12px;
+  }
+  .pp-add-form button:disabled { opacity: .5; cursor: default; }
+  .pp-error {
+    width: 100%; color: var(--danger); font-size: 11px;
+    padding-top: 6px;
+  }
+  .pp-saved-flash {
+    color: var(--ok); font-size: 10px;
+    opacity: 0; transition: opacity .15s;
+  }
+  .pp-saved-flash.visible { opacity: 1; }
+
+  /* Sculptor view */
+  #sculptor-header {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 18px;
+  }
+  #sculptor-header h2 { margin: 0; font-size: 16px; }
+  #sculptor-period {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font: inherit; font-size: 12px;
+  }
+  #sculptor-status {
+    font-size: 10px; padding: 2px 8px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+    background: var(--panel-2); color: var(--muted);
+  }
+  #sculptor-status.wip       { background: #f1c40f; color: #2a2a2a; }
+  #sculptor-status.validated { background: #4f8cff; color: white; }
+  #sculptor-status.final_sent{ background: var(--ok); color: white; }
+  #sculptor-refresh {
+    margin-left: auto;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  #sculptor-refresh:hover { border-color: rgba(255,255,255,.15); }
+  #sculptor-saved-flash {
+    color: var(--ok); font-size: 10px; opacity: 0;
+    transition: opacity .15s; margin-right: 8px;
+  }
+  #sculptor-saved-flash.visible { opacity: 1; }
+
+  /* Items list */
+  #sculptor-content {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 16px;
+  }
+  .sc-empty {
+    padding: 40px 20px; text-align: center;
+    color: var(--muted); font-size: 13px;
+  }
+  .sc-item {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 14px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .sc-item:last-child { border-bottom: none; }
+  .sc-item.excluded { opacity: .55; }
+  .sc-item .sc-include {
+    margin-top: 2px; width: 16px; height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .sc-item .sc-name {
+    font-weight: 600; font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .sc-item .sc-meta {
+    color: var(--muted); font-weight: 400; font-size: 11px;
+    margin-left: 8px;
+  }
+  .sc-item .sc-note {
+    width: 100%; min-height: 32px; max-height: 120px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; font: inherit; font-size: 12px;
+    resize: vertical; margin-top: 4px;
+  }
+  .sc-item .sc-note:focus { border-color: var(--accent); outline: none; }
+  .sc-item .sc-price {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 13px;
+    text-align: right; white-space: nowrap;
+    padding-top: 1px;
+  }
+
+  /* Total + global notes */
+  .sc-total-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; margin-bottom: 16px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+  }
+  .sc-total-row .label { color: var(--muted); font-size: 12px; }
+  .sc-total-row .amount {
+    font-weight: 700; font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sc-notes-block {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .sc-notes-block label {
+    display: block; color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .sc-notes-block textarea {
+    width: 100%; min-height: 70px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px; font: inherit; font-size: 12px;
+    resize: vertical;
+  }
+  .sc-notes-block textarea:focus { border-color: var(--accent); outline: none; }
+  .sc-notes-block .footnote {
+    color: var(--muted); font-size: 11px; margin-top: 10px; line-height: 1.5;
+  }
+  .sc-error {
+    background: rgba(224,86,107,.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 10px 14px; border-radius: 6px; font-size: 12px;
+    margin-bottom: 14px;
+  }
+
+  /* ---------- Admin workorders panel ---------- */
+  .awo-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .awo-header h2 { margin: 0; font-size: 14px; }
+  .awo-header .spacer { flex: 1; }
+  .awo-header select {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font: inherit; font-size: 12px;
+  }
+  .awo-header button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 12px; font-size: 11px; cursor: pointer;
+  }
+  .awo-header button:hover { border-color: rgba(255,255,255,.15); }
+  .awo-header button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .awo-header button:disabled { opacity: .5; cursor: default; }
+
+  .awo-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .awo-table th, .awo-table td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; vertical-align: middle;
+  }
+  .awo-table th {
+    background: var(--panel-2); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .awo-table tr:last-child td { border-bottom: none; }
+  .awo-table tr.has-data:hover { background: rgba(255,255,255,.03); cursor: pointer; }
+  .awo-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .awo-table .status-cell {
+    display: inline-block; font-size: 10px;
+    padding: 2px 8px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .awo-table .status-cell.wip        { background: #f1c40f; color: #2a2a2a; }
+  .awo-table .status-cell.validated  { background: #4f8cff; color: white; }
+  .awo-table .status-cell.final_sent { background: var(--ok); color: white; }
+  .awo-table .status-cell.none       { background: var(--panel-2); color: var(--muted); }
+  .awo-table .note-flag {
+    display: inline-block; font-size: 10px;
+    padding: 2px 6px; border-radius: 8px;
+    background: rgba(241,196,15,.15); color: var(--warn);
+  }
+  .awo-table .open-btn {
+    background: transparent; color: var(--accent);
+    border: none; cursor: pointer; font-size: 12px;
+    font-weight: 600;
+  }
+  .awo-empty {
+    padding: 30px; text-align: center; color: var(--muted);
+    font-size: 12px; font-style: italic;
+  }
+
+  /* Admin detail (per-artist WO review) */
+  .awo-detail-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 18px;
+  }
+  .awo-detail-header h2 { margin: 0; font-size: 16px; }
+  .awo-detail-header .back-btn {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .awo-detail-header .back-btn:hover { border-color: rgba(255,255,255,.15); }
+
+  .awo-detail-items {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 14px;
+  }
+  .awo-item {
+    display: grid;
+    grid-template-columns: 30px 1fr 100px 30px;
+    gap: 12px; align-items: start;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .awo-item:last-child { border-bottom: none; }
+  .awo-item.excluded { opacity: .55; }
+  .awo-item input[type="checkbox"] {
+    margin-top: 2px; width: 16px; height: 16px;
+    accent-color: var(--accent);
+  }
+  .awo-item .name { font-weight: 600; font-size: 13px; }
+  .awo-item .meta {
+    color: var(--muted); font-weight: 400; font-size: 11px;
+    margin-left: 8px;
+  }
+  .awo-item .artist-note {
+    margin-top: 6px;
+    color: var(--muted); font-size: 11px; font-style: italic;
+    padding: 6px 8px;
+    background: var(--bg); border-left: 2px solid var(--warn);
+    border-radius: 0 4px 4px 0;
+  }
+  .awo-item .artist-note::before { content: "Artist note: "; color: var(--warn); font-style: normal; font-weight: 600; }
+  .awo-item .price-input {
+    text-align: right; font-variant-numeric: tabular-nums;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; font: inherit; font-size: 12px;
+    width: 100%;
+  }
+  .awo-item .price-input:focus { border-color: var(--accent); outline: none; }
+  .awo-item .price-input:disabled { opacity: .6; }
+  .awo-item .row-del {
+    background: transparent; color: var(--muted); border: none;
+    cursor: pointer; padding: 2px 4px; font-size: 14px;
+  }
+  .awo-item .row-del:hover { color: var(--danger); }
+
+  .awo-totals-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; margin-bottom: 14px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+  }
+  .awo-totals-row .label { color: var(--muted); font-size: 12px; }
+  .awo-totals-row .amount {
+    font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+
+  .awo-notes-block {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 14px;
+  }
+  .awo-notes-block + .awo-notes-block { margin-top: -8px; }
+  .awo-notes-block label {
+    display: block; color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .awo-notes-block .ro-note {
+    background: var(--bg); padding: 8px 10px; border-radius: 4px;
+    font-size: 12px; color: var(--text); white-space: pre-wrap;
+    border-left: 3px solid var(--warn);
+  }
+  .awo-notes-block .ro-empty {
+    color: var(--muted); font-size: 12px; font-style: italic;
+  }
+  .awo-notes-block textarea {
+    width: 100%; min-height: 70px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px; font: inherit; font-size: 12px;
+    resize: vertical;
+  }
+  .awo-notes-block textarea:focus { border-color: var(--accent); outline: none; }
+
+  .awo-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding-top: 4px;
+  }
+  .awo-actions button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 8px 16px; font-size: 12px; cursor: pointer;
+    font-weight: 600;
+  }
+  .awo-actions button:hover { border-color: rgba(255,255,255,.15); }
+  .awo-actions button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .awo-actions button.primary:hover { background: #4173d6; border-color: #4173d6; }
+  .awo-actions button.danger {
+    background: transparent; color: var(--danger); border-color: var(--danger);
+  }
+  .awo-actions button:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- PDF preview modal ---------- */
+  #pdf-modal { position: fixed; inset: 0; z-index: 600; display: none; }
+  #pdf-modal.visible { display: block; }
+  #pdf-modal .pdf-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.75);
+  }
+  #pdf-modal .pdf-content {
+    position: absolute; top: 5vh; left: 50%; transform: translateX(-50%);
+    width: 760px; max-width: 96vw; height: 90vh;
+    background: var(--panel); border-radius: 10px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #pdf-modal .pdf-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+  }
+  #pdf-modal .pdf-header h2 { margin: 0; font-size: 14px; }
+  #pdf-modal .pdf-header .spacer { flex: 1; }
+  #pdf-modal .pdf-status {
+    color: var(--muted); font-size: 11px;
+  }
+  #pdf-modal .pdf-close {
+    background: transparent; color: var(--text); border: none;
+    font-size: 22px; cursor: pointer; padding: 0 6px;
+  }
+  #pdf-modal .pdf-body {
+    flex: 1; background: #2a2a2a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #pdf-modal iframe { width: 100%; height: 100%; border: none; background: white; }
+  #pdf-modal .pdf-loading {
+    color: var(--muted); font-size: 13px;
+  }
+  #pdf-modal .pdf-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 12px 18px; border-top: 1px solid var(--border);
+  }
+  #pdf-modal .pdf-actions button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 8px 16px; font-size: 12px; cursor: pointer;
+    font-weight: 600;
+  }
+  #pdf-modal .pdf-actions button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  #pdf-modal .pdf-actions button:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- Auth screen (copy of parent app pattern) ---------- */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: none; align-items: center; justify-content: center;
+  }
+  #auth-screen.visible { display: flex; }
+  .auth-card {
+    background: var(--panel); border-radius: 10px;
+    padding: 30px 32px; width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .auth-card h1 { margin: 0 0 6px; font-size: 18px; }
+  .auth-sub { color: var(--muted); margin: 0 0 18px; font-size: 12px; line-height: 1.5; }
+  .auth-card label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px;
+  }
+  .auth-card input {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 5px;
+    font: inherit;
+  }
+  .auth-card button {
+    width: 100%; padding: 9px; margin-top: 14px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 5px;
+    cursor: pointer; font-weight: 600;
+  }
+  .auth-card button:disabled { opacity: .5; cursor: default; }
+  .auth-error {
+    color: var(--danger); font-size: 11px;
+    margin-top: 10px; display: none;
+  }
+  .auth-error.visible { display: block; }
+
+  /* ---------- Loading state ---------- */
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 12px;
+  }
+  #loading.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loading">Loading…</div>
+
+<!-- Auth screen (password-only, mirrors index.html) -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>Back office</h1>
+    <p class="auth-sub">Sign in to access workorders and billing.</p>
+    <div class="auth-error" id="auth-error"></div>
+    <label for="auth-email">Email</label>
+    <input id="auth-email" type="email" autocomplete="email" placeholder="you@company.com" />
+    <label for="auth-password">Password</label>
+    <input id="auth-password" type="password" autocomplete="current-password" />
+    <button id="auth-btn">Sign in</button>
+    <p style="margin-top:14px;color:var(--muted);font-size:11px;line-height:1.5">
+      No password yet? Ask an admin to add you.
+      <a href="index.html" style="color:var(--accent);text-decoration:none">← Back to the board</a>
+    </p>
+  </div>
+</div>
+
+<!-- Main app shell (hidden until auth completes) -->
+<div id="app" style="display:none">
+  <div id="topbar">
+    <h1>Back office <span class="sub" id="topbar-sub"></span></h1>
+    <div id="user-menu">
+      <div class="user-info">
+        <span class="user-email" id="user-email-display"></span>
+        <span class="role-badge" id="user-role-badge"></span>
+      </div>
+      <button id="btn-board" title="Back to the release board">← Board</button>
+      <button id="btn-logout" title="Log out">Logout</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <!-- Admin view (tabs + panels). Hidden if user is not admin. -->
+    <div id="admin-view" style="display:none">
+      <div id="admin-tabs">
+        <button data-tab="workorders" class="active">Workorders</button>
+        <button data-tab="pricing">Pricing</button>
+        <button data-tab="history">History</button>
+      </div>
+      <div id="admin-panel-workorders" class="admin-panel active">
+        <!-- LIST VIEW -->
+        <div id="awo-list-view">
+          <div class="awo-header">
+            <h2>Workorders</h2>
+            <select id="awo-period" title="Period"></select>
+            <div class="spacer"></div>
+            <span class="pp-saved-flash" id="awo-saved-flash">Saved ✓</span>
+            <button id="awo-refresh-all" title="Re-scan all boards and sync every artist's WO">↻ Refresh all artists</button>
+          </div>
+          <div id="awo-error" class="sc-error" style="display:none"></div>
+          <table class="awo-table">
+            <thead>
+              <tr>
+                <th style="width:30%">Artist</th>
+                <th class="num" style="width:90px">Items</th>
+                <th class="num" style="width:120px">Total</th>
+                <th style="width:90px">Notes</th>
+                <th style="width:110px">Status</th>
+                <th style="width:80px"></th>
+              </tr>
+            </thead>
+            <tbody id="awo-tbody">
+              <tr><td colspan="6" class="awo-empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- DETAIL VIEW -->
+        <div id="awo-detail-view" style="display:none">
+          <div class="awo-detail-header">
+            <button class="back-btn" id="awo-back">← Back</button>
+            <h2 id="awo-detail-title">…</h2>
+            <span id="awo-detail-status" class="status-cell none"></span>
+            <div class="spacer" style="flex:1"></div>
+            <span class="pp-saved-flash" id="awo-detail-saved">Saved ✓</span>
+          </div>
+          <div id="awo-detail-error" class="sc-error" style="display:none"></div>
+          <div class="awo-detail-items" id="awo-detail-items">
+            <div class="awo-empty">Loading…</div>
+          </div>
+          <div class="awo-totals-row">
+            <span class="label">Total (included items)</span>
+            <span class="amount" id="awo-detail-total">0 €</span>
+          </div>
+          <div class="awo-notes-block">
+            <label>Artist notes (read-only)</label>
+            <div id="awo-artist-notes" class="ro-empty">— no notes from artist —</div>
+          </div>
+          <div class="awo-notes-block">
+            <label>Admin notes (private — not shown to artist)</label>
+            <textarea id="awo-admin-notes"
+              placeholder="Internal notes for this workorder…"></textarea>
+          </div>
+          <div class="awo-actions">
+            <button class="danger" id="awo-revert" style="display:none">Revert to wip</button>
+            <button id="awo-pdf">📄 Preview PDF</button>
+            <button class="primary" id="awo-validate">Validate &amp; lock →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF preview modal -->
+      <div id="pdf-modal">
+        <div class="pdf-backdrop" id="pdf-backdrop"></div>
+        <div class="pdf-content">
+          <div class="pdf-header">
+            <h2 id="pdf-modal-title">PDF preview</h2>
+            <span class="pdf-status" id="pdf-status">Generating…</span>
+            <div class="spacer"></div>
+            <button class="pdf-close" id="pdf-close" title="Close (Esc)">×</button>
+          </div>
+          <div class="pdf-body">
+            <div class="pdf-loading" id="pdf-loading">Preparing PDF…</div>
+            <iframe id="pdf-iframe" style="display:none"></iframe>
+          </div>
+          <div class="pdf-actions">
+            <button id="pdf-download">Download</button>
+            <button class="primary" id="pdf-send" disabled title="Comes in Phase 7 (Resend email pipeline)">Send final → (Phase 7)</button>
+          </div>
+        </div>
+      </div>
+      <div id="admin-panel-pricing" class="admin-panel">
+        <div class="pp-header">
+          <h2>Pricing grid</h2>
+          <label><input type="checkbox" id="pp-show-inactive" /> Show inactive</label>
+          <div class="spacer"></div>
+          <span class="pp-saved-flash" id="pp-saved-flash">Saved ✓</span>
+          <button id="pp-refresh" title="Reload from database">↻ Refresh</button>
+        </div>
+        <table class="pp-table">
+          <thead>
+            <tr>
+              <th style="width:30%">Artist</th>
+              <th style="width:18%">Character type</th>
+              <th style="width:14%;text-align:right">Price (EUR)</th>
+              <th>Notes</th>
+              <th style="width:140px"></th>
+            </tr>
+          </thead>
+          <tbody id="pp-tbody"></tbody>
+        </table>
+        <div class="pp-add-form">
+          <div>
+            <label>Artist</label>
+            <select id="pp-new-artist"></select>
+          </div>
+          <div>
+            <label>Character type</label>
+            <select id="pp-new-type">
+              <option value="hero">Hero</option>
+              <option value="troop">Troop</option>
+              <option value="monster">Monster</option>
+              <option value="scenery">Scenery</option>
+              <option value="centerpiece">Centerpiece</option>
+              <option value="diorama">Diorama</option>
+            </select>
+          </div>
+          <div>
+            <label>Price (EUR)</label>
+            <input id="pp-new-price" class="price-input" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div>
+            <label>Notes (optional)</label>
+            <input id="pp-new-notes" class="notes-input" type="text" placeholder="…" />
+          </div>
+          <button id="pp-new-add">+ Add rule</button>
+          <div class="pp-error" id="pp-error"></div>
+        </div>
+      </div>
+      <div id="admin-panel-history" class="admin-panel">
+        <div class="placeholder">
+          <h2>History</h2>
+          Phase 8 will land here: past workorders, PDF downloads, CSV export.
+        </div>
+      </div>
+    </div>
+
+    <!-- Sculptor view. Hidden if user is admin. -->
+    <div id="sculptor-view" style="display:none">
+      <div id="sculptor-header">
+        <h2 id="sculptor-greeting">Hi —</h2>
+        <select id="sculptor-period" title="Period (year-month)"></select>
+        <span id="sculptor-status">no workorder</span>
+        <span id="sculptor-saved-flash">Saved ✓</span>
+        <button id="sculptor-refresh" title="Re-scan the boards for new items">↻ Refresh</button>
+      </div>
+      <div id="sculptor-error" class="sc-error" style="display:none"></div>
+      <div id="sculptor-content">
+        <div class="sc-empty">Loading…</div>
+      </div>
+      <div class="sc-total-row">
+        <span class="label">Running total (included items)</span>
+        <span class="amount" id="sculptor-total">0 €</span>
+      </div>
+      <div class="sc-notes-block">
+        <label for="sculptor-notes-textarea">Global notes for this month</label>
+        <textarea id="sculptor-notes-textarea"
+          placeholder="Anything the admin should know about this month overall…"></textarea>
+        <div class="footnote">
+          Items appear here as you finish them on the board. Toggle the checkbox
+          to include or exclude a line from the total. Your notes (per-line and
+          global) are visible to the admin and saved live.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Supabase config (same project as parent app) ----------
+// TODO: extract to a shared config.js eventually so we don't drift.
+const SUPABASE_URL      = "https://jwokrnrpmzscmnazzmci.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5xhGx3Sz0TiCz8RDVcH7kg_POFKcPkl";
+
+let sb = null;
+let currentUser = null; // { email, role, display_name }
+let membersCache = [];  // [{ email, display_name, role }]
+
+// Dev override: ?role=reader|editor|admin in the URL forces a view even when
+// the user has a different real role. Purely UI — RLS still applies to the
+// underlying real role, so all reads/writes behave as the actual account.
+const ROLE_OVERRIDE = new URLSearchParams(location.search).get("role");
+function effectiveRole() {
+  if (ROLE_OVERRIDE && ["admin","editor","reader"].includes(ROLE_OVERRIDE)) return ROLE_OVERRIDE;
+  return currentUser?.role;
+}
+
+const CHARACTER_TYPES = ["hero","troop","monster","scenery","centerpiece","diorama"];
+const TYPE_LABEL = {
+  hero: "Hero", troop: "Troop", monster: "Monster",
+  scenery: "Scenery", centerpiece: "Centerpiece", diorama: "Diorama"
+};
+
+async function loadMembersCache() {
+  const { data, error } = await sb.from("members")
+    .select("email, display_name, role").order("email");
+  if (error) { console.warn("Members cache failed", error); return; }
+  membersCache = data || [];
+}
+function memberDisplayName(email) {
+  if (!email) return "";
+  const m = membersCache.find(x => x.email === email);
+  if (m && m.display_name) return m.display_name;
+  return (email.split("@")[0] || email);
+}
+
+// Dynamically load the Supabase SDK (mirrors index.html behavior).
+async function loadSupabaseSdk() {
+  if (window.supabase) return true;
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+    s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(false), 8000);
+  });
+}
+
+async function initSupabase() {
+  const ok = await loadSupabaseSdk();
+  if (!ok || !window.supabase) {
+    showFatal("Could not load Supabase SDK. Check your connection.");
+    return false;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storage: window.localStorage,
+    },
+  });
+  return true;
+}
+
+function showFatal(msg) {
+  const loading = document.getElementById("loading");
+  loading.style.color = "var(--danger)";
+  loading.textContent = msg;
+  loading.classList.remove("hidden");
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.classList.add("visible");
+}
+function clearAuthError() {
+  document.getElementById("auth-error").classList.remove("visible");
+}
+
+function showAuthScreen() {
+  document.getElementById("loading").classList.add("hidden");
+  document.getElementById("auth-screen").classList.add("visible");
+  document.getElementById("auth-email").focus();
+}
+function hideAuthScreen() {
+  document.getElementById("auth-screen").classList.remove("visible");
+}
+
+// ---------- Auth flow ----------
+async function loadCurrentUser(email) {
+  const { data, error } = await sb.from("members")
+    .select("email, role, display_name").eq("email", email).maybeSingle();
+  if (error) {
+    showAuthError("Lookup failed: " + error.message);
+    return false;
+  }
+  if (!data) {
+    showAuthError(`${email} is not invited yet. Ask an admin to add you.`);
+    await sb.auth.signOut();
+    return false;
+  }
+  currentUser = { email: data.email, role: data.role, display_name: data.display_name || null };
+  return true;
+}
+
+async function signIn() {
+  clearAuthError();
+  const email    = document.getElementById("auth-email").value.trim().toLowerCase();
+  const password = document.getElementById("auth-password").value;
+  if (!email || !password) { showAuthError("Email and password required."); return; }
+  const btn = document.getElementById("auth-btn");
+  btn.disabled = true; btn.textContent = "Signing in…";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = "Sign in";
+  if (error) {
+    showAuthError(/invalid login credentials/i.test(error.message)
+      ? "Wrong email or password."
+      : error.message);
+    return;
+  }
+  const ok = await loadCurrentUser(email);
+  if (!ok) return;
+  hideAuthScreen();
+  await boot();
+}
+
+async function tryRestoreSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return false;
+  const ok = await loadCurrentUser(session.user.email);
+  return ok;
+}
+
+async function logout() {
+  if (sb) await sb.auth.signOut();
+  currentUser = null;
+  location.reload();
+}
+
+// ---------- Boot ----------
+async function boot() {
+  document.getElementById("loading").classList.add("hidden");
+  document.getElementById("app").style.display = "block";
+
+  // Header user info
+  document.getElementById("user-email-display").textContent =
+    currentUser.display_name ? `${currentUser.display_name} (${currentUser.email})` : currentUser.email;
+  const badge = document.getElementById("user-role-badge");
+  badge.textContent = currentUser.role;
+  badge.className = "role-badge " + currentUser.role;
+
+  // We need the members cache for the artist dropdown in the pricing form.
+  // Load in parallel — it's cheap and used by both views.
+  await loadMembersCache();
+
+  // Role-based UI branch — supports the dev override via ?role=...
+  const role = effectiveRole();
+  const overrideBanner = (ROLE_OVERRIDE && ROLE_OVERRIDE !== currentUser.role)
+    ? ` <span style="color:var(--warn);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-left:6px">dev: ${ROLE_OVERRIDE} view</span>`
+    : "";
+  if (role === "admin") {
+    document.getElementById("topbar-sub").innerHTML = "— admin" + overrideBanner;
+    document.getElementById("admin-view").style.display = "block";
+    setupAdminTabs();
+    setupWorkordersPanel();
+    setupPricingPanel();
+  } else {
+    document.getElementById("topbar-sub").innerHTML =
+      `— ${currentUser.display_name || currentUser.email.split("@")[0]}` + overrideBanner;
+    document.getElementById("sculptor-view").style.display = "block";
+    document.getElementById("sculptor-greeting").textContent =
+      `Hi ${currentUser.display_name || currentUser.email.split("@")[0]} —`;
+    setupSculptorView();
+  }
+}
+
+function setupAdminTabs() {
+  document.querySelectorAll("#admin-tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll("#admin-tabs button").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".admin-panel").forEach(p => {
+        p.classList.toggle("active", p.id === `admin-panel-${tab}`);
+      });
+    });
+  });
+}
+
+// ---------- Sculptor view ----------
+let scState = {
+  period: null,
+  workorderId: null,
+  workorder: null,     // row from `workorders`
+  items: [],           // rows from `workorder_items`
+  realtimeChannel: null,
+  suppressNextEcho: false,
+};
+
+function setupSculptorView() {
+  // Populate the period selector with the last 12 months.
+  const sel = document.getElementById("sculptor-period");
+  sel.innerHTML = "";
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label + (i === 0 ? " (current)" : "");
+    sel.appendChild(opt);
+  }
+  sel.value = sel.options[0].value;
+
+  sel.addEventListener("change", () => loadSculptorPeriod(sel.value));
+  document.getElementById("sculptor-refresh").addEventListener("click", () => loadSculptorPeriod(scState.period));
+
+  // Global notes — save on blur.
+  document.getElementById("sculptor-notes-textarea").addEventListener("blur", saveGlobalNote);
+
+  // Initial load.
+  loadSculptorPeriod(sel.value);
+}
+
+function flashSculptorSaved() {
+  const el = document.getElementById("sculptor-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(flashSculptorSaved._t);
+  flashSculptorSaved._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showSculptorError(msg) {
+  const el = document.getElementById("sculptor-error");
+  if (!msg) { el.style.display = "none"; return; }
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+// Scan boards_data and return the items belonging to the current user.
+async function scanBoardsForMyItems() {
+  const { data, error } = await sb.from("boards_data").select("data").eq("id", "default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  const payload = [];
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (item.type !== "image" && item.type !== "slot") continue;
+      if (!item.artist_email) continue;
+      if (item.artist_email !== currentUser.email) continue;
+      payload.push({
+        source_board_id: board.id,
+        source_item_id:  item.id,
+        character_name:  item.label || null,
+        character_type:  item.characterType || null,
+        base_size:       item.baseSize || null,
+        tier:            item.tier || null,
+        default_included: item.status === "approved",
+      });
+    }
+  }
+  return payload;
+}
+
+async function loadSculptorPeriod(period) {
+  scState.period = period;
+  showSculptorError("");
+  const content = document.getElementById("sculptor-content");
+  content.innerHTML = "<div class='sc-empty'>Loading…</div>";
+
+  let items, woId;
+  try {
+    items = await scanBoardsForMyItems();
+  } catch (e) {
+    showSculptorError("Failed to read boards: " + (e.message || e));
+    content.innerHTML = "<div class='sc-empty'>—</div>";
+    return;
+  }
+
+  // Call the sync RPC to ensure the WO + lines exist.
+  const { data: rpcData, error: rpcErr } = await sb.rpc("sync_my_workorder", {
+    p_period: period,
+    p_items:  items,
+  });
+  if (rpcErr) {
+    showSculptorError("Sync failed: " + rpcErr.message);
+    content.innerHTML = "<div class='sc-empty'>—</div>";
+    return;
+  }
+  woId = rpcData;
+  scState.workorderId = woId;
+
+  // Load WO + items.
+  await reloadSculptorData();
+  subscribeSculptorRealtime();
+}
+
+async function reloadSculptorData() {
+  if (!scState.workorderId) return;
+  const [{ data: wo, error: e1 }, { data: lines, error: e2 }] = await Promise.all([
+    sb.from("workorders").select("*").eq("id", scState.workorderId).maybeSingle(),
+    sb.from("workorder_items").select("*").eq("workorder_id", scState.workorderId)
+      .order("created_at"),
+  ]);
+  if (e1 || e2) {
+    showSculptorError("Load failed: " + (e1?.message || e2?.message));
+    return;
+  }
+  scState.workorder = wo;
+  scState.items = lines || [];
+  renderSculptor();
+}
+
+function renderSculptor() {
+  // Header status + global note + total.
+  const status = scState.workorder?.status || "";
+  const statusEl = document.getElementById("sculptor-status");
+  statusEl.className = ""; statusEl.classList.add(status);
+  statusEl.textContent = status === "wip" ? "wip — open for edits"
+                       : status === "validated" ? "validated"
+                       : status === "final_sent" ? "final sent"
+                       : "no workorder";
+
+  // Global notes textarea — only re-fill if not focused (don't clobber typing).
+  const notesEl = document.getElementById("sculptor-notes-textarea");
+  if (document.activeElement !== notesEl) {
+    notesEl.value = scState.workorder?.notes_artist || "";
+  }
+  notesEl.disabled = status !== "wip";
+
+  // Items list.
+  const content = document.getElementById("sculptor-content");
+  if (scState.items.length === 0) {
+    content.innerHTML = "<div class='sc-empty'>No items yet this period. Items you've worked on appear here as you tag them with your name on the board.</div>";
+  } else {
+    content.innerHTML = "";
+    for (const it of scState.items) content.appendChild(renderSculptorItem(it, status));
+  }
+
+  // Total.
+  const total = scState.items
+    .filter(it => it.included)
+    .reduce((s, it) => s + Number(it.unit_price || 0), 0);
+  document.getElementById("sculptor-total").textContent = formatEur(total);
+}
+
+function formatEur(n) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
+}
+
+function renderSculptorItem(it, woStatus) {
+  const locked = woStatus !== "wip";
+  const row = document.createElement("div");
+  row.className = "sc-item" + (it.included ? "" : " excluded");
+  row.dataset.id = it.id;
+
+  // Include checkbox
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.className = "sc-include";
+  cb.checked = !!it.included;
+  cb.disabled = locked;
+  cb.title = it.included ? "Uncheck to exclude from total" : "Check to include in total";
+  cb.addEventListener("change", () => toggleIncluded(it.id, cb.checked));
+  row.appendChild(cb);
+
+  // Info column
+  const info = document.createElement("div");
+  const name = document.createElement("div");
+  name.className = "sc-name";
+  name.textContent = it.character_name || "(unnamed)";
+  if (it.character_type || it.base_size || it.tier) {
+    const meta = document.createElement("span");
+    meta.className = "sc-meta";
+    const bits = [];
+    if (it.character_type) bits.push(TYPE_LABEL[it.character_type] || it.character_type);
+    if (it.base_size) bits.push(it.base_size);
+    if (it.tier)      bits.push(it.tier);
+    meta.textContent = "• " + bits.join(" · ");
+    name.appendChild(meta);
+  }
+  info.appendChild(name);
+
+  const note = document.createElement("textarea");
+  note.className = "sc-note";
+  note.placeholder = "Add a note for the admin (e.g. extra armor work, scope change…)";
+  note.value = it.notes || "";
+  note.disabled = locked;
+  note.addEventListener("blur", () => saveItemNote(it.id, note.value));
+  info.appendChild(note);
+  row.appendChild(info);
+
+  // Price
+  const price = document.createElement("div");
+  price.className = "sc-price";
+  price.textContent = formatEur(Number(it.unit_price || 0));
+  row.appendChild(price);
+
+  return row;
+}
+
+async function toggleIncluded(itemId, checked) {
+  scState.suppressNextEcho = true;
+  const { error } = await sb.from("workorder_items")
+    .update({ included: checked }).eq("id", itemId);
+  if (error) {
+    showSculptorError("Could not save: " + error.message);
+    return;
+  }
+  // Optimistic local update + recompute total.
+  const local = scState.items.find(x => x.id === itemId);
+  if (local) local.included = checked;
+  renderSculptor();
+  flashSculptorSaved();
+}
+
+async function saveItemNote(itemId, value) {
+  const trimmed = value.trim() || null;
+  const local = scState.items.find(x => x.id === itemId);
+  if (local && (local.notes || null) === trimmed) return; // no change
+  scState.suppressNextEcho = true;
+  const { error } = await sb.from("workorder_items")
+    .update({ notes: trimmed }).eq("id", itemId);
+  if (error) {
+    showSculptorError("Could not save note: " + error.message);
+    return;
+  }
+  if (local) local.notes = trimmed;
+  flashSculptorSaved();
+}
+
+async function saveGlobalNote() {
+  if (!scState.workorderId) return;
+  if (scState.workorder?.status !== "wip") return;
+  const value = document.getElementById("sculptor-notes-textarea").value;
+  const trimmed = value.trim() || null;
+  if ((scState.workorder?.notes_artist || null) === trimmed) return;
+  scState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ notes_artist: trimmed }).eq("id", scState.workorderId);
+  if (error) {
+    showSculptorError("Could not save note: " + error.message);
+    return;
+  }
+  if (scState.workorder) scState.workorder.notes_artist = trimmed;
+  flashSculptorSaved();
+}
+
+function subscribeSculptorRealtime() {
+  if (scState.realtimeChannel) {
+    sb.removeChannel(scState.realtimeChannel);
+    scState.realtimeChannel = null;
+  }
+  if (!scState.workorderId) return;
+
+  scState.realtimeChannel = sb
+    .channel(`sculptor-wo-${scState.workorderId}`)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorders",
+          filter: `id=eq.${scState.workorderId}` },
+        (payload) => {
+          if (scState.suppressNextEcho) { scState.suppressNextEcho = false; return; }
+          if (payload.new) scState.workorder = payload.new;
+          renderSculptor();
+        })
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorder_items",
+          filter: `workorder_id=eq.${scState.workorderId}` },
+        (payload) => {
+          if (scState.suppressNextEcho) { scState.suppressNextEcho = false; return; }
+          // Lazy strategy: just refetch the items list.
+          reloadSculptorData();
+        })
+    .subscribe();
+}
+
+// ---------- Pricing panel ----------
+function setupPricingPanel() {
+  // Populate the "new rule" artist dropdown from membersCache.
+  const sel = document.getElementById("pp-new-artist");
+  sel.innerHTML = "";
+  for (const m of membersCache) {
+    const opt = document.createElement("option");
+    opt.value = m.email;
+    opt.textContent = m.display_name || m.email.split("@")[0];
+    sel.appendChild(opt);
+  }
+
+  document.getElementById("pp-new-add").addEventListener("click", addPriceRule);
+  document.getElementById("pp-new-price").addEventListener("keydown", e => {
+    if (e.key === "Enter") addPriceRule();
+  });
+  document.getElementById("pp-refresh").addEventListener("click", renderPricingTable);
+  document.getElementById("pp-show-inactive").addEventListener("change", renderPricingTable);
+
+  renderPricingTable();
+}
+
+function flashSaved() {
+  const el = document.getElementById("pp-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(flashSaved._t);
+  flashSaved._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showPriceError(msg) {
+  const el = document.getElementById("pp-error");
+  el.textContent = msg;
+  clearTimeout(showPriceError._t);
+  showPriceError._t = setTimeout(() => { el.textContent = ""; }, 5000);
+}
+
+async function renderPricingTable() {
+  const tbody = document.getElementById("pp-tbody");
+  const showInactive = document.getElementById("pp-show-inactive").checked;
+  tbody.innerHTML = "<tr><td colspan='5' class='pp-empty'>Loading…</td></tr>";
+
+  let query = sb.from("prices")
+    .select("id, artist_email, character_type, price, currency, active, notes, updated_at")
+    .order("artist_email").order("character_type").order("updated_at", { ascending: false });
+  if (!showInactive) query = query.eq("active", true);
+
+  const { data, error } = await query;
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan='5' class='pp-empty' style='color:var(--danger)'>${error.message}</td></tr>`;
+    return;
+  }
+  if (!data || data.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='5' class='pp-empty'>No price rules yet. Add one below.</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = "";
+  for (const row of data) {
+    tbody.appendChild(renderPriceRow(row));
+  }
+}
+
+function renderPriceRow(row) {
+  const tr = document.createElement("tr");
+  if (!row.active) tr.classList.add("inactive");
+
+  // Artist (read-only — to change artist, deactivate + add a new rule)
+  const tdArtist = document.createElement("td");
+  tdArtist.textContent = memberDisplayName(row.artist_email);
+  tdArtist.title = row.artist_email;
+  tr.appendChild(tdArtist);
+
+  // Type (read-only for the same reason)
+  const tdType = document.createElement("td");
+  tdType.textContent = TYPE_LABEL[row.character_type] || row.character_type;
+  tr.appendChild(tdType);
+
+  // Price — editable inline
+  const tdPrice = document.createElement("td");
+  tdPrice.style.textAlign = "right";
+  const priceIn = document.createElement("input");
+  priceIn.type = "number";
+  priceIn.step = "0.01";
+  priceIn.min  = "0";
+  priceIn.className = "pp-cell-input price";
+  priceIn.value = row.price;
+  priceIn.disabled = !row.active;
+  priceIn.addEventListener("change", async () => {
+    const newVal = parseFloat(priceIn.value);
+    if (isNaN(newVal) || newVal < 0) {
+      showPriceError("Price must be a non-negative number");
+      priceIn.value = row.price;
+      return;
+    }
+    if (newVal === row.price) return;
+    const { error } = await sb.from("prices").update({ price: newVal }).eq("id", row.id);
+    if (error) { showPriceError(error.message); priceIn.value = row.price; return; }
+    row.price = newVal;
+    flashSaved();
+  });
+  tdPrice.appendChild(priceIn);
+  tr.appendChild(tdPrice);
+
+  // Notes — editable inline
+  const tdNotes = document.createElement("td");
+  const notesIn = document.createElement("input");
+  notesIn.type = "text";
+  notesIn.className = "pp-cell-input";
+  notesIn.value = row.notes || "";
+  notesIn.disabled = !row.active;
+  notesIn.addEventListener("change", async () => {
+    const newVal = notesIn.value.trim() || null;
+    if (newVal === (row.notes || null)) return;
+    const { error } = await sb.from("prices").update({ notes: newVal }).eq("id", row.id);
+    if (error) { showPriceError(error.message); notesIn.value = row.notes || ""; return; }
+    row.notes = newVal;
+    flashSaved();
+  });
+  tdNotes.appendChild(notesIn);
+  tr.appendChild(tdNotes);
+
+  // Actions: deactivate / reactivate / delete
+  const tdActions = document.createElement("td");
+  tdActions.className = "pp-row-actions";
+  if (row.active) {
+    const offBtn = document.createElement("button");
+    offBtn.className = "danger";
+    offBtn.textContent = "Deactivate";
+    offBtn.title = "Soft-delete: rule is kept for history but no longer applied.";
+    offBtn.addEventListener("click", async () => {
+      const { error } = await sb.from("prices").update({ active: false }).eq("id", row.id);
+      if (error) { showPriceError(error.message); return; }
+      flashSaved();
+      renderPricingTable();
+    });
+    tdActions.appendChild(offBtn);
+  } else {
+    const onBtn = document.createElement("button");
+    onBtn.className = "ok";
+    onBtn.textContent = "Reactivate";
+    onBtn.title = "Make this rule active again. Will fail if another active rule exists for the same (artist, type).";
+    onBtn.addEventListener("click", async () => {
+      const { error } = await sb.from("prices").update({ active: true }).eq("id", row.id);
+      if (error) {
+        if (/duplicate|unique/i.test(error.message)) {
+          showPriceError(`An active rule already exists for ${memberDisplayName(row.artist_email)} / ${TYPE_LABEL[row.character_type]}. Deactivate it first.`);
+        } else {
+          showPriceError(error.message);
+        }
+        return;
+      }
+      flashSaved();
+      renderPricingTable();
+    });
+    tdActions.appendChild(onBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "danger";
+    delBtn.textContent = "Delete";
+    delBtn.title = "Permanent delete (only allowed on inactive rules).";
+    delBtn.addEventListener("click", async () => {
+      if (!confirm(`Permanently delete this inactive rule?\n${memberDisplayName(row.artist_email)} / ${TYPE_LABEL[row.character_type]} @ ${row.price}€`)) return;
+      const { error } = await sb.from("prices").delete().eq("id", row.id);
+      if (error) { showPriceError(error.message); return; }
+      flashSaved();
+      renderPricingTable();
+    });
+    tdActions.appendChild(delBtn);
+  }
+  tr.appendChild(tdActions);
+
+  return tr;
+}
+
+async function addPriceRule() {
+  const email = document.getElementById("pp-new-artist").value;
+  const type  = document.getElementById("pp-new-type").value;
+  const priceStr = document.getElementById("pp-new-price").value;
+  const notes = document.getElementById("pp-new-notes").value.trim() || null;
+  const price = parseFloat(priceStr);
+
+  if (!email)                       { showPriceError("Pick an artist"); return; }
+  if (!CHARACTER_TYPES.includes(type)) { showPriceError("Invalid character type"); return; }
+  if (isNaN(price) || price < 0)    { showPriceError("Price must be a non-negative number"); return; }
+
+  const btn = document.getElementById("pp-new-add");
+  btn.disabled = true;
+  const { error } = await sb.from("prices").insert({
+    artist_email: email,
+    character_type: type,
+    price,
+    notes,
+    active: true
+  });
+  btn.disabled = false;
+
+  if (error) {
+    // Most common: violates the unique index on (artist_email, character_type) where active.
+    if (/duplicate|unique/i.test(error.message)) {
+      showPriceError(`An active rule already exists for ${memberDisplayName(email)} / ${TYPE_LABEL[type]}. Edit the existing one or deactivate it first.`);
+    } else {
+      showPriceError(error.message);
+    }
+    return;
+  }
+  // Reset form
+  document.getElementById("pp-new-price").value = "";
+  document.getElementById("pp-new-notes").value = "";
+  flashSaved();
+  renderPricingTable();
+}
+
+// ---------- Admin workorders panel (Phase 5) ----------
+let awoState = {
+  period: null,
+  view: "list",           // "list" | "detail"
+  rows: [],               // [{ member, workorder, stats }]
+  detail: null,           // { artistEmail, workorder, items }
+  realtimeChannel: null,
+  suppressNextEcho: false,
+};
+
+function setupWorkordersPanel() {
+  // Period selector
+  const sel = document.getElementById("awo-period");
+  sel.innerHTML = "";
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label + (i === 0 ? " (current)" : "");
+    sel.appendChild(opt);
+  }
+  sel.value = sel.options[0].value;
+  awoState.period = sel.value;
+
+  sel.addEventListener("change", () => {
+    awoState.period = sel.value;
+    if (awoState.view === "list") loadWorkordersList();
+    else closeArtistDetail(); // back to list with new period
+  });
+
+  document.getElementById("awo-refresh-all").addEventListener("click", refreshAllWorkorders);
+  document.getElementById("awo-back").addEventListener("click", closeArtistDetail);
+  document.getElementById("awo-validate").addEventListener("click", validateCurrentWorkorder);
+  document.getElementById("awo-revert").addEventListener("click", revertCurrentWorkorder);
+  document.getElementById("awo-admin-notes").addEventListener("blur", saveAdminNotes);
+
+  loadWorkordersList();
+}
+
+function awoFlashSaved(detail = false) {
+  const el = document.getElementById(detail ? "awo-detail-saved" : "awo-saved-flash");
+  el.classList.add("visible");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("visible"), 800);
+}
+
+function showAwoError(msg, detail = false) {
+  const el = document.getElementById(detail ? "awo-detail-error" : "awo-error");
+  if (!msg) { el.style.display = "none"; return; }
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+// ---- LIST VIEW ----
+async function loadWorkordersList() {
+  showAwoError("");
+  const tbody = document.getElementById("awo-tbody");
+  tbody.innerHTML = "<tr><td colspan='6' class='awo-empty'>Loading…</td></tr>";
+
+  const period = awoState.period;
+  // 1. Fetch workorders for the period
+  const { data: workorders, error: woErr } = await sb.from("workorders")
+    .select("id, artist_email, status, notes_artist, wo_number")
+    .eq("period", period);
+  if (woErr) { showAwoError(woErr.message); tbody.innerHTML = ""; return; }
+
+  // 2. Fetch items for those workorders (for aggregation)
+  let items = [];
+  if (workorders.length > 0) {
+    const ids = workorders.map(w => w.id);
+    const { data: itemsData, error: itErr } = await sb.from("workorder_items")
+      .select("workorder_id, unit_price, included")
+      .in("workorder_id", ids);
+    if (itErr) { showAwoError(itErr.message); tbody.innerHTML = ""; return; }
+    items = itemsData || [];
+  }
+
+  // 3. Aggregate
+  const stats = {};
+  for (const w of workorders) stats[w.id] = { included: 0, totalCount: 0, total: 0 };
+  for (const it of items) {
+    const s = stats[it.workorder_id];
+    if (!s) continue;
+    s.totalCount++;
+    if (it.included) { s.included++; s.total += Number(it.unit_price || 0); }
+  }
+
+  // 4. Combine with members (show every member, even with no WO yet)
+  awoState.rows = membersCache.map(m => {
+    const wo = workorders.find(w => w.artist_email === m.email);
+    return { member: m, workorder: wo || null, stats: wo ? stats[wo.id] : null };
+  });
+
+  renderWorkordersList();
+}
+
+function renderWorkordersList() {
+  const tbody = document.getElementById("awo-tbody");
+  if (awoState.rows.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='6' class='awo-empty'>No members yet.</td></tr>";
+    return;
+  }
+  tbody.innerHTML = "";
+  for (const r of awoState.rows) {
+    const tr = document.createElement("tr");
+    const hasData = !!r.workorder;
+    if (hasData) {
+      tr.classList.add("has-data");
+      tr.addEventListener("click", (e) => {
+        // Don't open if the click is on an inner button.
+        if (e.target.tagName === "BUTTON") return;
+        openArtistDetail(r.member.email);
+      });
+    }
+
+    // Artist
+    const tdA = document.createElement("td");
+    tdA.textContent = r.member.display_name || r.member.email.split("@")[0];
+    tdA.title = r.member.email;
+    tr.appendChild(tdA);
+
+    // Items count
+    const tdI = document.createElement("td");
+    tdI.className = "num";
+    if (r.stats) {
+      tdI.textContent = r.stats.totalCount === r.stats.included
+        ? r.stats.totalCount
+        : `${r.stats.included} / ${r.stats.totalCount}`;
+    } else { tdI.textContent = "—"; }
+    tr.appendChild(tdI);
+
+    // Total
+    const tdT = document.createElement("td");
+    tdT.className = "num";
+    tdT.textContent = r.stats ? formatEur(r.stats.total) : "—";
+    tr.appendChild(tdT);
+
+    // Notes flag
+    const tdN = document.createElement("td");
+    if (r.workorder?.notes_artist) {
+      const span = document.createElement("span");
+      span.className = "note-flag";
+      span.textContent = "1 note";
+      span.title = r.workorder.notes_artist;
+      tdN.appendChild(span);
+    } else { tdN.textContent = "—"; tdN.style.color = "var(--muted)"; }
+    tr.appendChild(tdN);
+
+    // Status
+    const tdS = document.createElement("td");
+    const status = r.workorder?.status || "none";
+    const badge = document.createElement("span");
+    badge.className = `status-cell ${status}`;
+    badge.textContent = status === "none" ? "—" : (r.workorder.wo_number || status);
+    tdS.appendChild(badge);
+    tr.appendChild(tdS);
+
+    // Action
+    const tdAct = document.createElement("td");
+    if (hasData) {
+      const btn = document.createElement("button");
+      btn.className = "open-btn";
+      btn.textContent = "Open →";
+      btn.addEventListener("click", () => openArtistDetail(r.member.email));
+      tdAct.appendChild(btn);
+    }
+    tr.appendChild(tdAct);
+
+    tbody.appendChild(tr);
+  }
+}
+
+// Scan boards_data and group items by artist_email.
+async function scanBoardsByArtist() {
+  const { data, error } = await sb.from("boards_data").select("data").eq("id","default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  const byEmail = {};
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (item.type !== "image" && item.type !== "slot") continue;
+      if (!item.artist_email) continue;
+      const list = byEmail[item.artist_email] || (byEmail[item.artist_email] = []);
+      list.push({
+        source_board_id: board.id,
+        source_item_id:  item.id,
+        character_name:  item.label || null,
+        character_type:  item.characterType || null,
+        base_size:       item.baseSize || null,
+        tier:            item.tier || null,
+        default_included: item.status === "approved",
+      });
+    }
+  }
+  return byEmail;
+}
+
+async function refreshAllWorkorders() {
+  showAwoError("");
+  const btn = document.getElementById("awo-refresh-all");
+  btn.disabled = true; const old = btn.textContent;
+  btn.textContent = "Syncing…";
+  try {
+    const byEmail = await scanBoardsByArtist();
+    const emails = Object.keys(byEmail);
+    for (let i = 0; i < emails.length; i++) {
+      const email = emails[i];
+      btn.textContent = `Syncing… ${i+1}/${emails.length}`;
+      const { error } = await sb.rpc("admin_sync_workorder", {
+        p_artist_email: email,
+        p_period:       awoState.period,
+        p_items:        byEmail[email],
+      });
+      if (error) console.warn(`Sync failed for ${email}:`, error.message);
+    }
+    await loadWorkordersList();
+    awoFlashSaved();
+  } catch (e) {
+    showAwoError("Refresh failed: " + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+// ---- DETAIL VIEW ----
+async function openArtistDetail(artistEmail) {
+  document.getElementById("awo-list-view").style.display = "none";
+  document.getElementById("awo-detail-view").style.display = "block";
+  showAwoError("", true);
+
+  // Load WO + items
+  const { data: wo, error: woErr } = await sb.from("workorders")
+    .select("*").eq("artist_email", artistEmail).eq("period", awoState.period).maybeSingle();
+  if (woErr) { showAwoError(woErr.message, true); return; }
+  if (!wo) { showAwoError("No workorder for this artist in this period.", true); return; }
+
+  const { data: items, error: itErr } = await sb.from("workorder_items")
+    .select("*").eq("workorder_id", wo.id).order("created_at");
+  if (itErr) { showAwoError(itErr.message, true); return; }
+
+  awoState.detail = { artistEmail, workorder: wo, items: items || [] };
+  renderArtistDetail();
+  subscribeArtistDetailRealtime();
+}
+
+function closeArtistDetail() {
+  if (awoState.realtimeChannel) {
+    sb.removeChannel(awoState.realtimeChannel);
+    awoState.realtimeChannel = null;
+  }
+  awoState.detail = null;
+  awoState.view = "list";
+  document.getElementById("awo-detail-view").style.display = "none";
+  document.getElementById("awo-list-view").style.display = "block";
+  loadWorkordersList();
+}
+
+function renderArtistDetail() {
+  awoState.view = "detail";
+  const d = awoState.detail;
+  if (!d) return;
+
+  const displayName = memberDisplayName(d.artistEmail);
+  document.getElementById("awo-detail-title").textContent =
+    `${displayName} — ${d.workorder.period}` +
+    (d.workorder.wo_number ? `  ·  ${d.workorder.wo_number}` : "");
+
+  const status = d.workorder.status;
+  const badge = document.getElementById("awo-detail-status");
+  badge.className = `status-cell ${status}`;
+  badge.textContent = status;
+
+  const locked = status !== "wip";
+  document.getElementById("awo-validate").style.display = locked ? "none" : "";
+  document.getElementById("awo-revert").style.display = (status === "validated") ? "" : "none";
+
+  // Items
+  const list = document.getElementById("awo-detail-items");
+  if (d.items.length === 0) {
+    list.innerHTML = "<div class='awo-empty'>No line items. Use “Refresh all artists” on the list view to scan the boards.</div>";
+  } else {
+    list.innerHTML = "";
+    for (const it of d.items) list.appendChild(renderAdminItemRow(it, locked));
+  }
+
+  // Total
+  const total = d.items.filter(i => i.included).reduce((s, i) => s + Number(i.unit_price || 0), 0);
+  document.getElementById("awo-detail-total").textContent = formatEur(total);
+
+  // Artist notes (read-only)
+  const noteBox = document.getElementById("awo-artist-notes");
+  if (d.workorder.notes_artist) {
+    noteBox.className = "ro-note";
+    noteBox.textContent = d.workorder.notes_artist;
+  } else {
+    noteBox.className = "ro-empty";
+    noteBox.textContent = "— no notes from artist —";
+  }
+
+  // Admin notes (editable, don't clobber focus)
+  const adminEl = document.getElementById("awo-admin-notes");
+  if (document.activeElement !== adminEl) {
+    adminEl.value = d.workorder.notes_admin || "";
+  }
+  adminEl.disabled = (status === "final_sent");
+}
+
+function renderAdminItemRow(it, locked) {
+  const row = document.createElement("div");
+  row.className = "awo-item" + (it.included ? "" : " excluded");
+  row.dataset.id = it.id;
+
+  const cb = document.createElement("input");
+  cb.type = "checkbox"; cb.checked = !!it.included;
+  cb.disabled = locked;
+  cb.addEventListener("change", () => adminToggleIncluded(it.id, cb.checked));
+  row.appendChild(cb);
+
+  const info = document.createElement("div");
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = it.character_name || "(unnamed)";
+  if (it.character_type || it.base_size || it.tier) {
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const bits = [];
+    if (it.character_type) bits.push(TYPE_LABEL[it.character_type] || it.character_type);
+    if (it.base_size) bits.push(it.base_size);
+    if (it.tier) bits.push(it.tier);
+    meta.textContent = "• " + bits.join(" · ");
+    name.appendChild(meta);
+  }
+  info.appendChild(name);
+  if (it.notes) {
+    const n = document.createElement("div");
+    n.className = "artist-note";
+    n.textContent = it.notes;
+    info.appendChild(n);
+  }
+  row.appendChild(info);
+
+  const priceIn = document.createElement("input");
+  priceIn.className = "price-input";
+  priceIn.type = "number"; priceIn.step = "0.01"; priceIn.min = "0";
+  priceIn.value = it.unit_price;
+  priceIn.disabled = locked;
+  priceIn.addEventListener("change", () => adminUpdatePrice(it.id, priceIn.value));
+  row.appendChild(priceIn);
+
+  const del = document.createElement("button");
+  del.className = "row-del";
+  del.textContent = "×";
+  del.title = "Remove this line from the workorder";
+  del.disabled = locked;
+  del.addEventListener("click", () => adminDeleteLine(it.id));
+  row.appendChild(del);
+
+  return row;
+}
+
+async function adminToggleIncluded(id, checked) {
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorder_items").update({ included: checked }).eq("id", id);
+  if (error) { showAwoError(error.message, true); return; }
+  const it = awoState.detail.items.find(x => x.id === id);
+  if (it) it.included = checked;
+  renderArtistDetail();
+  awoFlashSaved(true);
+}
+
+async function adminUpdatePrice(id, valueStr) {
+  const value = parseFloat(valueStr);
+  if (isNaN(value) || value < 0) { showAwoError("Price must be a non-negative number.", true); return; }
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorder_items").update({ unit_price: value }).eq("id", id);
+  if (error) { showAwoError(error.message, true); return; }
+  const it = awoState.detail.items.find(x => x.id === id);
+  if (it) it.unit_price = value;
+  renderArtistDetail();
+  awoFlashSaved(true);
+}
+
+async function adminDeleteLine(id) {
+  if (!confirm("Remove this line from the workorder? (It can come back next time you Refresh, unless the source item is archived first.)")) return;
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorder_items").delete().eq("id", id);
+  if (error) { showAwoError(error.message, true); return; }
+  awoState.detail.items = awoState.detail.items.filter(x => x.id !== id);
+  renderArtistDetail();
+  awoFlashSaved(true);
+}
+
+async function saveAdminNotes() {
+  if (!awoState.detail) return;
+  const value = document.getElementById("awo-admin-notes").value;
+  const trimmed = value.trim() || null;
+  if ((awoState.detail.workorder.notes_admin || null) === trimmed) return;
+  awoState.suppressNextEcho = true;
+  const { error } = await sb.from("workorders")
+    .update({ notes_admin: trimmed }).eq("id", awoState.detail.workorder.id);
+  if (error) { showAwoError(error.message, true); return; }
+  awoState.detail.workorder.notes_admin = trimmed;
+  awoFlashSaved(true);
+}
+
+async function validateCurrentWorkorder() {
+  if (!awoState.detail) return;
+  if (!confirm("Validate this workorder?\nThis locks sculptor edits and assigns a sequential WO number.\nFinal PDF/email comes in Phase 6+7 (separate action).")) return;
+  const btn = document.getElementById("awo-validate");
+  btn.disabled = true; const old = btn.textContent;
+  btn.textContent = "Validating…";
+  const { data, error } = await sb.rpc("validate_workorder", { p_wo_id: awoState.detail.workorder.id });
+  btn.disabled = false; btn.textContent = old;
+  if (error) { showAwoError(error.message, true); return; }
+  // Reload WO row (status, wo_number, total, validated_at)
+  const { data: wo } = await sb.from("workorders").select("*").eq("id", awoState.detail.workorder.id).maybeSingle();
+  if (wo) awoState.detail.workorder = wo;
+  renderArtistDetail();
+  awoFlashSaved(true);
+  alert(`Workorder ${data} validated. Sculptor edits are now locked.`);
+}
+
+async function revertCurrentWorkorder() {
+  if (!awoState.detail) return;
+  if (!confirm("Re-open this workorder for edits?\nThe WO number is kept (no renumbering).")) return;
+  const { error } = await sb.rpc("revert_workorder_to_wip", { p_wo_id: awoState.detail.workorder.id });
+  if (error) { showAwoError(error.message, true); return; }
+  const { data: wo } = await sb.from("workorders").select("*").eq("id", awoState.detail.workorder.id).maybeSingle();
+  if (wo) awoState.detail.workorder = wo;
+  renderArtistDetail();
+  awoFlashSaved(true);
+}
+
+function subscribeArtistDetailRealtime() {
+  if (awoState.realtimeChannel) {
+    sb.removeChannel(awoState.realtimeChannel);
+    awoState.realtimeChannel = null;
+  }
+  if (!awoState.detail) return;
+  const woId = awoState.detail.workorder.id;
+  awoState.realtimeChannel = sb
+    .channel(`admin-wo-${woId}`)
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorders", filter: `id=eq.${woId}` },
+        (payload) => {
+          if (awoState.suppressNextEcho) { awoState.suppressNextEcho = false; return; }
+          if (payload.new) awoState.detail.workorder = payload.new;
+          renderArtistDetail();
+        })
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "workorder_items", filter: `workorder_id=eq.${woId}` },
+        async () => {
+          if (awoState.suppressNextEcho) { awoState.suppressNextEcho = false; return; }
+          // Refetch items
+          const { data } = await sb.from("workorder_items").select("*").eq("workorder_id", woId).order("created_at");
+          awoState.detail.items = data || [];
+          renderArtistDetail();
+        })
+    .subscribe();
+}
+
+// ---------- PDF generation (Phase 6) ----------
+// pdfmake is loaded lazily — only when the admin opens the PDF preview the
+// first time. ~290KB gzipped, no point pulling it on every page load.
+let pdfMakeLoaded = false;
+async function loadPdfMake() {
+  if (pdfMakeLoaded && window.pdfMake) return true;
+  const main = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js");
+  if (!main || !window.pdfMake) return false;
+  const fonts = await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js");
+  pdfMakeLoaded = main && fonts && !!window.pdfMake;
+  return pdfMakeLoaded;
+}
+function loadScript(src) {
+  return new Promise(resolve => {
+    const s = document.createElement("script");
+    s.src = src; s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(false), 12000);
+  });
+}
+
+// Fetch an image (Storage URL or data URL), resize to a max bounding box,
+// and return a JPEG data URL suitable for embedding into pdfmake.
+async function fetchAndResizeImage(url, maxDim = 160) {
+  let blob;
+  if (url.startsWith("data:")) {
+    const resp = await fetch(url);
+    blob = await resp.blob();
+  } else {
+    const resp = await fetch(url, { mode: "cors" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    blob = await resp.blob();
+  }
+  const bmp = await createImageBitmap(blob);
+  const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
+  const w = Math.max(1, Math.round(bmp.width  * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  // White background so transparent PNGs don't show black on the PDF page.
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+// Look up each workorder_item in boards_data and resolve its main image URL.
+// Returns a map { item_id -> dataUrl } (missing entries = no thumbnail).
+async function loadThumbnailsForCurrentWO() {
+  if (!awoState.detail) return {};
+  const { data, error } = await sb.from("boards_data").select("data").eq("id","default").maybeSingle();
+  if (error) throw error;
+  const boards = data?.data?.boards || [];
+  // Index source items for O(1) lookup
+  const sourceMap = new Map(); // "boardId:itemId" -> item.src
+  for (const board of boards) {
+    if (!board || !Array.isArray(board.items)) continue;
+    for (const item of board.items) {
+      if (!item) continue;
+      if (!item.src) continue;
+      sourceMap.set(`${board.id}:${item.id}`, item.src);
+    }
+  }
+  // Resolve thumbnails in parallel — limited concurrency would be safer for
+  // very large WOs, but a typical month has <50 items so a flat Promise.all
+  // is fine.
+  const out = {};
+  const tasks = awoState.detail.items.map(async (it) => {
+    const key = `${it.source_board_id}:${it.source_item_id}`;
+    const src = sourceMap.get(key);
+    if (!src) return;
+    try {
+      out[it.id] = await fetchAndResizeImage(src, 160);
+    } catch (e) {
+      console.warn("Thumbnail fetch failed for item", it.id, e);
+    }
+  });
+  await Promise.all(tasks);
+  return out;
+}
+
+let pdfBlobUrl = null;
+let pdfFileName = "workorder.pdf";
+
+async function openPdfPreview() {
+  if (!awoState.detail) return;
+  if (awoState.detail.items.length === 0) {
+    showAwoError("No items in this workorder — nothing to render.", true);
+    return;
+  }
+  // Open modal in loading state
+  document.getElementById("pdf-modal").classList.add("visible");
+  document.getElementById("pdf-loading").style.display = "";
+  document.getElementById("pdf-iframe").style.display = "none";
+  document.getElementById("pdf-status").textContent = "Loading pdfmake…";
+
+  const ok = await loadPdfMake();
+  if (!ok) {
+    document.getElementById("pdf-status").textContent = "Error";
+    document.getElementById("pdf-loading").textContent = "Failed to load pdfmake CDN.";
+    return;
+  }
+
+  document.getElementById("pdf-status").textContent = "Fetching thumbnails…";
+  let thumbs;
+  try {
+    thumbs = await loadThumbnailsForCurrentWO();
+  } catch (e) {
+    console.warn("Thumbnail load error", e);
+    thumbs = {};
+  }
+
+  document.getElementById("pdf-status").textContent = "Rendering…";
+  const doc = buildPdfDoc(awoState.detail, thumbs);
+  pdfFileName = pdfFileNameFor(awoState.detail.workorder);
+
+  pdfMake.createPdf(doc).getBlob(blob => {
+    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    pdfBlobUrl = URL.createObjectURL(blob);
+    const iframe = document.getElementById("pdf-iframe");
+    iframe.src = pdfBlobUrl;
+    iframe.style.display = "block";
+    document.getElementById("pdf-loading").style.display = "none";
+    document.getElementById("pdf-status").textContent = "Ready";
+  });
+}
+
+function pdfFileNameFor(wo) {
+  const ref = wo.wo_number || `WO_${wo.period}_${memberDisplayName(wo.artist_email)}`;
+  return ref.replace(/[\\/:*?"<>|]/g, "_") + ".pdf";
+}
+
+function closePdfModal() {
+  document.getElementById("pdf-modal").classList.remove("visible");
+  if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
+  document.getElementById("pdf-iframe").src = "";
+}
+
+function downloadCurrentPdf() {
+  if (!pdfBlobUrl) return;
+  const a = document.createElement("a");
+  a.href = pdfBlobUrl;
+  a.download = pdfFileName;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// Builds the pdfmake document definition for a workorder.
+// French layout, neutral branding (Phase 6). Logo + company block to come.
+function buildPdfDoc(detail, thumbs) {
+  const { workorder, items, artistEmail } = detail;
+  const artistName = memberDisplayName(artistEmail);
+  const periodLabel = formatPeriodFr(workorder.period);
+  const dateLabel = new Date().toLocaleDateString("fr-FR",
+    { day: "numeric", month: "long", year: "numeric" });
+
+  // Table body. Header row + one row per item. Excluded items are skipped
+  // for the official PDF (they wouldn't be billed).
+  const includedItems = items.filter(it => it.included);
+  const body = [
+    [
+      { text: "", style: "th" },
+      { text: "Pièce",      style: "th" },
+      { text: "Type",       style: "th" },
+      { text: "Prix",       style: "th", alignment: "right" },
+    ],
+    ...includedItems.map(it => {
+      const thumb = thumbs[it.id];
+      const meta = [];
+      if (it.base_size) meta.push(it.base_size);
+      if (it.tier)      meta.push(it.tier);
+      const subStack = [
+        { text: it.character_name || "(sans nom)", bold: true },
+      ];
+      if (meta.length) {
+        subStack.push({ text: meta.join(" · "), color: "#777", fontSize: 9, margin: [0,1,0,0] });
+      }
+      if (it.notes) {
+        subStack.push({ text: "Note : " + it.notes, italics: true, color: "#666", fontSize: 9, margin: [0,3,0,0] });
+      }
+      return [
+        thumb
+          ? { image: thumb, width: 50, height: 50, fit: [50, 50], margin: [0,2,0,2] }
+          : { text: "—", color: "#aaa", alignment: "center", margin: [0,18,0,0] },
+        { stack: subStack, margin: [0,2,0,2] },
+        { text: TYPE_LABEL[it.character_type] || (it.character_type || "—"), color: "#555", margin: [0,18,0,0] },
+        { text: formatEur(Number(it.unit_price || 0)), alignment: "right", margin: [0,18,0,0] },
+      ];
+    })
+  ];
+
+  const total = includedItems.reduce((s, it) => s + Number(it.unit_price || 0), 0);
+  const woNumber = workorder.wo_number || "(non validé)";
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 50, 40, 60],
+    defaultStyle: { font: "Roboto", fontSize: 10, color: "#222" },
+
+    content: [
+      // Header block (neutral, no logo yet — Phase 8 polish)
+      {
+        columns: [
+          { stack: [
+              { text: "RAGING HEROES", bold: true, fontSize: 14, color: "#111" },
+              { text: "Bon de travail", color: "#666", fontSize: 10, margin: [0,2,0,0] },
+            ]
+          },
+          { stack: [
+              { text: woNumber, bold: true, alignment: "right", fontSize: 14, color: "#111" },
+              { text: "Émis le " + dateLabel, alignment: "right", color: "#666", fontSize: 10, margin: [0,2,0,0] },
+            ], width: "*"
+          }
+        ]
+      },
+      // Artist + period block
+      {
+        margin: [0, 24, 0, 16],
+        columns: [
+          { stack: [
+              { text: "ARTISTE",  color: "#888", fontSize: 8, characterSpacing: 1 },
+              { text: artistName, fontSize: 12, bold: true, margin: [0,2,0,0] },
+              { text: artistEmail, color: "#888", fontSize: 9, margin: [0,1,0,0] },
+            ]
+          },
+          { stack: [
+              { text: "PÉRIODE",   color: "#888", fontSize: 8, characterSpacing: 1, alignment: "right" },
+              { text: periodLabel, fontSize: 12, bold: true, margin: [0,2,0,0], alignment: "right" },
+            ]
+          }
+        ]
+      },
+      // Items table
+      {
+        table: { widths: [60, "*", 80, 80], headerRows: 1, body },
+        layout: {
+          hLineWidth: (i) => (i === 0 || i === 1) ? 0.8 : 0.3,
+          hLineColor: () => "#cccccc",
+          vLineWidth: () => 0,
+          paddingTop:    () => 6,
+          paddingBottom: () => 6,
+          paddingLeft:   (i) => i === 0 ? 0 : 6,
+          paddingRight:  (i, node) => i === node.table.widths.length - 1 ? 0 : 6,
+        }
+      },
+      // Total row
+      {
+        margin: [0, 12, 0, 0],
+        table: {
+          widths: ["*", 80],
+          body: [[
+            { text: "TOTAL", bold: true, alignment: "right", color: "#444", fontSize: 11 },
+            { text: formatEur(total), bold: true, alignment: "right", fontSize: 13, color: "#111" }
+          ]]
+        },
+        layout: "noBorders"
+      },
+      // Artist global notes
+      workorder.notes_artist
+        ? {
+            margin: [0, 28, 0, 0],
+            stack: [
+              { text: "NOTES DE L'ARTISTE", color: "#888", fontSize: 8, characterSpacing: 1 },
+              { text: workorder.notes_artist, italics: true, color: "#444", margin: [0, 6, 0, 0], fontSize: 10 }
+            ]
+          }
+        : null,
+    ].filter(Boolean),
+
+    styles: {
+      th: { bold: true, color: "#888", fontSize: 8, characterSpacing: 1 }
+    },
+
+    footer: (currentPage, pageCount) => ({
+      margin: [40, 0, 40, 0],
+      columns: [
+        { text: `Raging Heroes — ${woNumber}`, color: "#999", fontSize: 8 },
+        { text: `${currentPage} / ${pageCount}`, alignment: "right", color: "#999", fontSize: 8 }
+      ]
+    })
+  };
+}
+
+function formatPeriodFr(p) {
+  // "2026-05" -> "mai 2026"
+  if (!/^\d{4}-\d{2}$/.test(p)) return p;
+  const [y, m] = p.split("-");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return d.toLocaleString("fr-FR", { month: "long", year: "numeric" });
+}
+
+// ---------- Wiring ----------
+document.getElementById("auth-btn").addEventListener("click", signIn);
+document.getElementById("auth-password").addEventListener("keydown", e => {
+  if (e.key === "Enter") signIn();
+});
+document.getElementById("auth-email").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("auth-password").focus();
+});
+document.getElementById("btn-board").addEventListener("click", () => {
+  window.location.href = "index.html";
+});
+
+// PDF modal wiring (only meaningful when the admin view is loaded)
+const pdfBtn = document.getElementById("awo-pdf");
+if (pdfBtn) pdfBtn.addEventListener("click", openPdfPreview);
+const pdfClose = document.getElementById("pdf-close");
+if (pdfClose) pdfClose.addEventListener("click", closePdfModal);
+const pdfBackdrop = document.getElementById("pdf-backdrop");
+if (pdfBackdrop) pdfBackdrop.addEventListener("click", closePdfModal);
+const pdfDownload = document.getElementById("pdf-download");
+if (pdfDownload) pdfDownload.addEventListener("click", downloadCurrentPdf);
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("pdf-modal").classList.contains("visible")) {
+    closePdfModal();
+  }
+});
+document.getElementById("btn-logout").addEventListener("click", () => {
+  if (confirm("Log out?")) logout();
+});
+
+// ---------- Init ----------
+async function init() {
+  const ok = await initSupabase();
+  if (!ok) return;
+  const restored = await tryRestoreSession();
+  if (restored) {
+    hideAuthScreen();
+    await boot();
+  } else {
+    showAuthScreen();
+  }
+}
+init();
+</script>
+</body>
+</html>

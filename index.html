@@ -44,7 +44,72 @@
     z-index: 110;
     padding: 6px 14px;
     display: flex; flex-direction: column; gap: 4px;
+    transition: transform .22s ease, opacity .22s ease;
   }
+  #topbar.hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* Tiny visual hint that the topbar can be revealed by hovering up top */
+  #topbar-reveal-hint {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 3px; z-index: 109;
+    background: linear-gradient(to bottom, rgba(79,140,255,.5), transparent);
+    opacity: 0; transition: opacity .2s;
+    pointer-events: none;
+  }
+  body.topbar-hidden #topbar-reveal-hint { opacity: 1; }
+
+  /* Marquee selection rectangle (drag on empty canvas) */
+  #marquee {
+    position: fixed; z-index: 200;
+    pointer-events: none;
+    background: rgba(79,140,255,.08);
+    border: 1px solid var(--accent);
+  }
+
+  /* When the topbar is hidden, extend the viewport up to the top of the
+     window so the canvas actually fills the freed space — items shift up
+     smoothly along with it. Toolbar + inspector also slide up to top:10. */
+  #viewport, #toolbar, #inspector { transition: top .22s ease; }
+  body.topbar-hidden #viewport   { top: 0 !important; }
+  body.topbar-hidden #toolbar    { top: 10px !important; }
+  body.topbar-hidden #inspector  { top: 10px !important; }
+
+  /* Toolbar collapse (Blender N-panel style) */
+  #toolbar { transition: transform .22s ease, opacity .22s ease; }
+  body.toolbar-collapsed #toolbar {
+    transform: translateX(calc(-100% - 18px));
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tb-toggle {
+    color: var(--muted) !important;
+    font-size: 14px !important;
+    padding: 2px 7px !important;
+    line-height: 1 !important;
+  }
+  .tb-toggle:hover { color: var(--text) !important; }
+  #btn-toolbar-reveal {
+    position: fixed;
+    top: calc(var(--topbar-h) + 10px);
+    left: 0;
+    width: 18px; height: 32px;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.1); border-left: none;
+    border-radius: 0 5px 5px 0;
+    color: var(--muted);
+    cursor: pointer;
+    display: none;
+    font-size: 13px;
+    align-items: center; justify-content: center;
+    z-index: 95;
+    padding: 0;
+    transition: color .15s, background .15s;
+  }
+  body.toolbar-collapsed #btn-toolbar-reveal { display: flex; }
+  #btn-toolbar-reveal:hover { color: var(--text); background: var(--panel-2); }
   #release-title {
     background: transparent; color: var(--text);
     border: 1px solid transparent; border-radius: 5px;
@@ -127,7 +192,7 @@
   }
   .item.image .image-notes, .item.slot .image-notes {
     width: 160px; flex-shrink: 0;
-    padding: 8px 10px;
+    padding: 34px 10px 8px 10px;   /* extra top room for tier badge + star */
     background: rgba(20,20,25,.92);
     color: var(--text);
     font-size: 11px; line-height: 1.4;
@@ -153,17 +218,59 @@
   body.overview .item.image .image-notes,
   body.overview .item.slot  .image-notes { display: none; }
 
-  /* Pills bar at the bottom of the node, horizontal row */
+  /* Pills bar at the bottom of the node, horizontal row.
+     Absolute so it overlays the image — lets us counter-scale it without
+     leaving empty layout space. */
   .item.image .pills-bar, .item.slot .pills-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
     display: flex; flex-direction: row;
     flex-wrap: wrap; gap: 4px;
     padding: 5px 8px;
-    background: rgba(0,0,0,.45);
+    background: rgba(0,0,0,.55);
     border-top: 1px solid rgba(255,255,255,.08);
-    flex-shrink: 0;
+    z-index: 3;
   }
   body.overview .item.image .pills-bar,
   body.overview .item.slot  .pills-bar { display: none; }
+
+  /* Counter-scale: keep overlay UI a constant size on screen regardless of zoom.
+     BUT also cap by the node's effective on-screen width so UI doesn't
+     overflow a small node. Image keeps scaling normally with the canvas.
+     - --zoom is set on #world by applyView()
+     - --node-w is set on each .item by renderItem()/onResizeMove() */
+  #world { --zoom: 1; }
+  .item {
+    /* node width on screen, in px. node-w fallback 200, zoom fallback 1 */
+    --node-screen-w: calc(var(--node-w, 200) * var(--zoom, 1));
+    /* cap so UI fits in roughly the node width — tune the divisor for tightness */
+    --ui-fit-cap: calc(var(--node-screen-w) / 180);
+    /* natural inverse-zoom (clamped) */
+    --ui-natural: clamp(0.4, calc(1 / var(--zoom, 1)), 3);
+    /* final scale is the smaller of the two */
+    --ui-scale: min(var(--ui-natural), var(--ui-fit-cap));
+  }
+  .item .label,
+  .item .node-side-tools,
+  .item .node-corner-tools,
+  .item .pills-bar,
+  .item .handle,
+  .item.group .group-label,
+  .item.group .group-pin,
+  .item.group .group-watermark,
+  .alt-peek .alt-peek-label,
+  .alt-peek .alt-peek-badge {
+    transform: scale(var(--ui-scale, 1));
+  }
+  .item .label                 { transform-origin: top left; }
+  .item .node-corner-tools     { transform-origin: top right; }
+  .item .node-side-tools       { transform-origin: bottom right; }
+  .item .pills-bar             { transform-origin: bottom left; }
+  .item .handle                { transform-origin: 100% 100%; }
+  .item.group .group-label     { transform-origin: bottom left; }
+  .item.group .group-pin       { transform-origin: bottom left; }
+  .item.group .group-watermark { transform-origin: top center; }
+  .alt-peek .alt-peek-label    { transform-origin: top left; }
+  .alt-peek .alt-peek-badge    { transform-origin: top right; }
 
   .notes-pill {
     background: var(--panel-2);
@@ -184,6 +291,517 @@
   }
   .notes-pill a { color: var(--accent); text-decoration: none; }
   .notes-pill a:hover { text-decoration: underline; }
+
+  /* Tier dropdown (TOP-right overlay on image) */
+  .node-corner-tools {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; align-items: center;
+    z-index: 4;
+  }
+  /* Pin / Note / Star — vertical stack in BOTTOM-RIGHT */
+  .node-side-tools {
+    position: absolute; bottom: 6px; right: 6px;
+    display: flex; flex-direction: column; gap: 4px;
+    z-index: 4;
+  }
+
+  /* Stacked-card peek — alt sits BEHIND the main, peeking out to the left.
+     On hover, slides fully to the left to show both cards side by side. */
+  .item.image.has-alt { overflow: visible !important; }
+  .alt-peek {
+    position: absolute; inset: 0;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    z-index: -1;
+    transform: translate(-10px, -10px);
+    transition: transform .3s ease, box-shadow .3s ease;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .alt-peek .alt-peek-img-wrap {
+    position: absolute; inset: 0;
+    background: #111;
+    overflow: hidden;
+  }
+  .alt-peek .alt-peek-img-wrap img {
+    width: 100%; height: 100%; object-fit: contain;
+    display: block;
+    pointer-events: none;
+  }
+  .alt-peek .alt-peek-label {
+    position: absolute; top: 6px; left: 6px;
+    background: rgba(0,0,0,.7); color: #fff;
+    padding: 3px 9px; border-radius: 4px;
+    font: 700 12px/1.2 inherit;
+    z-index: 3;
+    max-width: 60%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    pointer-events: none;
+  }
+  .alt-peek .alt-peek-badge {
+    position: absolute; top: 6px; right: 6px;
+    background: #f1c40f; color: #2a2a2a;
+    padding: 2px 7px; border-radius: 3px;
+    font: 700 9px/1 inherit; letter-spacing: .05em;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .item.image.has-alt:hover .alt-peek {
+    transform: translate(calc(-100% - 14px), 0);
+    z-index: 6;
+    box-shadow: 0 6px 22px rgba(0,0,0,.6);
+  }
+  body.overview .alt-peek { display: none; }
+  .tier-select {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 22px 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase; letter-spacing: .04em;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,.18);
+    background-color: rgba(20,20,25,.85);
+    color: var(--text);
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5 L5 7 L8 3.5' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 5px center;
+  }
+  .tier-select.leader    { background-color: #6a4c93; color: #fff; border-color: #6a4c93; }
+  .tier-select.overlord  { background-color: #e67e22; color: #fff; border-color: #e67e22; }
+  .tier-select.sovereign { background-color: #f1c40f; color: #2a2a2a; border-color: #f1c40f; }
+  .tier-select.sovereign { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5 L5 7 L8 3.5' stroke='%232a2a2a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>"); }
+
+  .star-icon {
+    font-size: 20px; line-height: 1;
+    color: #f1c40f;
+    cursor: pointer;
+    text-shadow: 0 1px 3px rgba(0,0,0,.6);
+    transition: transform .12s;
+    user-select: none;
+  }
+  .star-icon:hover { transform: scale(1.2); }
+
+  /* AI name-generator button */
+  .namegen-btn {
+    width: 26px; height: 22px;
+    border-radius: 4px;
+    background: rgba(20,20,25,.85);
+    border: 1px solid rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    transition: background .12s;
+  }
+  .namegen-btn:hover { background: #9b59b6; color: white; border-color: #9b59b6; }
+
+  /* Name-gen popup (similar to note popup) */
+  #namegen-popup {
+    position: fixed; z-index: 700;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    padding: 14px;
+    width: 380px; max-width: 92vw;
+    display: none;
+  }
+  #namegen-popup.visible { display: block; }
+  #namegen-popup h3 {
+    margin: 0 0 8px; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #namegen-popup .ng-close {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
+  }
+  #namegen-popup label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em;
+    margin: 10px 0 4px;
+  }
+  #namegen-popup textarea, #namegen-popup input {
+    width: 100%;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 5px;
+    padding: 8px 10px; font: inherit;
+    outline: none; resize: vertical;
+  }
+  #namegen-popup textarea:focus, #namegen-popup input:focus { border-color: var(--accent); }
+  #namegen-popup .ng-checkbox {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text);
+    margin-top: 8px; cursor: pointer;
+  }
+  #namegen-popup .ng-actions {
+    display: flex; gap: 8px; margin-top: 12px;
+  }
+  #namegen-popup .ng-actions button {
+    flex: 1; padding: 8px;
+    background: #9b59b6; color: white;
+    border: none; border-radius: 5px;
+    cursor: pointer; font-weight: 600;
+  }
+  #namegen-popup .ng-actions button.secondary {
+    background: var(--panel-2); color: var(--text);
+  }
+  #namegen-popup .ng-actions button:disabled { opacity: .5; cursor: not-allowed; }
+  #namegen-popup .ng-result {
+    margin-top: 12px; padding: 10px 12px;
+    background: var(--bg); border-radius: 5px;
+    border-left: 3px solid #9b59b6;
+    font-size: 14px; font-weight: 600;
+    display: none;
+  }
+  #namegen-popup .ng-result.visible { display: block; }
+  #namegen-popup .ng-error {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(224,86,107,.12); color: var(--danger);
+    border-radius: 5px; font-size: 12px;
+    display: none;
+  }
+  #namegen-popup .ng-error.visible { display: block; }
+  #namegen-popup .ng-status { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  /* Settings modal */
+  #settings-modal { position: fixed; inset: 0; z-index: 550; display: none; }
+  #settings-modal.visible { display: block; }
+  #settings-modal .sm-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.7);
+  }
+  #settings-modal .sm-content {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 520px; max-width: 92vw; max-height: 85vh;
+    background: var(--panel); border-radius: 10px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  #settings-modal .sm-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+  }
+  #settings-modal .sm-header h2 { margin: 0; font-size: 15px; }
+  #settings-modal .sm-close {
+    background: transparent; color: var(--text);
+    border: none; font-size: 24px; cursor: pointer;
+    padding: 0 6px; line-height: 1;
+  }
+  #settings-modal .sm-body {
+    flex: 1; overflow-y: auto; padding: 16px 18px;
+  }
+  #settings-modal label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em;
+    margin: 14px 0 6px;
+  }
+  #settings-modal input, #settings-modal select, #settings-modal textarea {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 5px;
+    font: inherit; outline: none; resize: vertical;
+  }
+  #settings-modal input:focus, #settings-modal select:focus, #settings-modal textarea:focus {
+    border-color: var(--accent);
+  }
+  #settings-modal .sm-hint {
+    color: var(--muted); font-size: 11px; margin-top: 4px; line-height: 1.4;
+  }
+  #settings-modal .sm-footer {
+    border-top: 1px solid rgba(255,255,255,.1);
+    padding: 12px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #settings-modal .sm-footer .sm-saved {
+    color: var(--ok); font-size: 11px;
+    opacity: 0; transition: opacity .25s;
+  }
+  #settings-modal .sm-footer .sm-saved.visible { opacity: 1; }
+  #settings-modal .sm-footer button {
+    background: var(--accent); color: white; border: none;
+    padding: 8px 18px; border-radius: 5px;
+    cursor: pointer; font-weight: 600;
+  }
+
+  /* Alt thumbnails column on the right of image-main */
+  .item .alts-column {
+    width: 58px; flex-shrink: 0;
+    background: rgba(0,0,0,.42);
+    border-left: 1px solid rgba(255,255,255,.08);
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow-y: auto;
+  }
+  .item .alts-column::-webkit-scrollbar { width: 4px; }
+  .item .alts-column::-webkit-scrollbar-thumb { background: var(--panel-2); border-radius: 2px; }
+  .alt-thumb {
+    width: 100%; aspect-ratio: 1 / 1;
+    background: #0f1014;
+    border-radius: 4px;
+    cursor: pointer; position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(241,196,15,.4);
+    flex-shrink: 0;
+    transition: border-color .12s, transform .12s;
+  }
+  .alt-thumb:hover { border-color: #f1c40f; transform: scale(1.03); }
+  .alt-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+    pointer-events: none;
+  }
+  .alt-thumb .alt-thumb-empty {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+    color: #f1c40f; font-size: 22px;
+  }
+  .alt-thumb .alt-thumb-badge {
+    position: absolute; top: 2px; left: 2px;
+    background: #f1c40f; color: #2a2a2a;
+    font-size: 8px; font-weight: 700; padding: 1px 4px;
+    border-radius: 2px;
+  }
+  body.overview .item .alts-column { display: none; }
+
+  /* Zoom-to-area rubber band (Ctrl/Cmd + drag) */
+  .zoom-box {
+    position: fixed;
+    border: 2px dashed var(--accent);
+    background: rgba(79,140,255,.15);
+    pointer-events: none;
+    z-index: 600;
+  }
+  body.zoom-mode, body.zoom-mode #viewport { cursor: zoom-in !important; }
+
+  /* Pin button — locks a node from being moved/resized */
+  .pin-btn {
+    width: 26px; height: 22px;
+    border-radius: 4px;
+    background: rgba(20,20,25,.85);
+    border: 1px solid rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--muted);
+    transition: background .12s, color .12s;
+  }
+  .pin-btn:hover { background: var(--panel-2); color: var(--text); }
+  .pin-btn.pinned {
+    background: #e0566b; color: #fff;
+    border-color: #e0566b;
+  }
+  .pin-btn.pinned:hover { background: #d04a5e; }
+  .item.pinned { cursor: default !important; }
+  .item.pinned .image-main, .item.pinned .pills-bar { cursor: default; }
+
+  /* Pin button for tier groups (sits next to group-label) */
+  .group-pin {
+    pointer-events: auto;
+    position: absolute; top: -38px;
+    padding: 7px 10px; border-radius: 6px;
+    background: var(--panel); color: var(--muted);
+    border: 1px solid rgba(255,255,255,.15);
+    cursor: pointer; font-size: 14px; line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  }
+  .group-pin:hover { color: var(--text); }
+  .group-pin.pinned { background: #e0566b; color: #fff; border-color: #e0566b; }
+
+  /* Note button on each node — replaces the integrated notes panel */
+  .note-btn {
+    width: 26px; height: 22px;
+    border-radius: 4px;
+    background: rgba(20,20,25,.85);
+    border: 1px solid rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--muted);
+    transition: background .12s, color .12s;
+  }
+  .note-btn:hover { background: var(--panel-2); color: var(--text); }
+  .note-btn.has-note {
+    background: #fff7c2; color: #2a2a2a;
+    border-color: #fff7c2;
+  }
+  .note-btn.has-note:hover { background: #fdf3a8; }
+
+  /* Note preview tooltip — shown on hover over a note button */
+  #note-tip {
+    position: fixed; z-index: 650;
+    background: #fff7c2; color: #2a2a2a;
+    padding: 10px 14px;
+    border-radius: 6px;
+    max-width: 320px;
+    font-size: 12px; line-height: 1.4;
+    box-shadow: 0 6px 16px rgba(0,0,0,.4);
+    white-space: pre-wrap; word-break: break-word;
+    pointer-events: none;
+    display: none;
+    border-left: 3px solid #e0a14a;
+  }
+  #note-tip.visible { display: block; }
+
+  /* Note edit popup (anchored near the clicked node) */
+  #note-popup {
+    position: fixed; z-index: 700;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    padding: 10px;
+    width: 320px; max-width: 90vw;
+    display: none;
+  }
+  #note-popup.visible { display: block; }
+  #note-popup .np-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  #note-popup .np-title {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .04em; font-weight: 600;
+  }
+  #note-popup .np-close {
+    background: transparent; color: var(--muted);
+    border: none; font-size: 18px; cursor: pointer;
+    padding: 0 4px; line-height: 1;
+  }
+  #note-popup .np-close:hover { color: var(--text); }
+  #note-popup textarea {
+    width: 100%; min-height: 120px; resize: vertical;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 5px;
+    padding: 8px 10px; font: inherit;
+    outline: none;
+  }
+  #note-popup textarea:focus { border-color: var(--accent); }
+  #note-popup .np-hint {
+    color: var(--muted); font-size: 10px;
+    margin-top: 6px; text-align: right;
+  }
+  #note-popup .np-colors { display: flex; gap: 6px; margin-top: 8px; }
+  #note-popup .np-swatch {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(0,0,0,.15); cursor: pointer; padding: 0;
+    transition: transform .08s;
+  }
+  #note-popup .np-swatch:hover { transform: scale(1.15); }
+  #note-popup .np-swatch.active { border-color: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+  .ctx-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 7px; vertical-align: middle;
+    border: 1px solid rgba(0,0,0,.2);
+  }
+
+  /* Filter row in topbar */
+  .title-row { display: flex; align-items: center; gap: 16px; }
+  .title-row #release-title { flex: 1; }
+  .filter-row { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .filter-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .filter-btn {
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 4px 12px; font-size: 11px; font-weight: 700;
+    cursor: pointer; text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .filter-btn:hover { color: var(--text); }
+  .filter-btn.active[data-f="leader"]    { background: #6a4c93; color: #fff; }
+  .filter-btn.active[data-f="overlord"]  { background: #e67e22; color: #fff; }
+  .filter-btn.active[data-f="sovereign"] { background: #f1c40f; color: #2a2a2a; }
+
+  /* Alt-version modal (above version-modal so it pops on top) */
+  #alt-modal { position: fixed; inset: 0; z-index: 600; display: none; }
+  #alt-modal.visible { display: block; }
+  #alt-modal .alt-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.78);
+  }
+  #alt-modal .alt-content {
+    position: absolute; inset: 8%;
+    background: var(--panel); border-radius: 12px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    overflow: hidden;
+  }
+  #alt-modal .alt-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+  }
+  #alt-modal .alt-header h2 { margin: 0; font-size: 15px; }
+  #alt-modal .alt-header h2 .alt-tag {
+    background: #f1c40f; color: #2a2a2a;
+    font-size: 10px; padding: 2px 8px; border-radius: 3px;
+    margin-right: 8px; font-weight: 700; letter-spacing: .04em;
+  }
+  #alt-modal #alt-close {
+    background: transparent; color: var(--text);
+    border: none; font-size: 28px; cursor: pointer;
+    padding: 0 8px; line-height: 1;
+  }
+  #alt-modal .alt-header-right {
+    display: flex; align-items: center; gap: 4px;
+  }
+  #alt-modal .alt-header-btn {
+    background: transparent; color: var(--text);
+    border: 1px solid transparent;
+    border-radius: 5px;
+    cursor: pointer; padding: 4px 8px;
+    font-size: 14px; line-height: 1;
+  }
+  #alt-modal .alt-header-btn:hover { background: var(--panel-2); }
+  #alt-modal .alt-header-btn.has-note { background: #fff7c2; color: #2a2a2a; }
+  #alt-modal .alt-header-btn.has-note:hover { background: #fdf3a8; }
+  #alt-modal .alt-body {
+    flex: 1; padding: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: #0a0b0e;
+  }
+  #alt-modal .alt-node {
+    width: 720px; height: 480px; max-width: 100%; max-height: 100%;
+    background: #111; border-radius: 6px;
+    display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 8px 30px rgba(0,0,0,.4);
+  }
+  #alt-modal .alt-node.drag-over { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #alt-modal .alt-node .content-row { display: flex; flex: 1; min-height: 0; }
+  #alt-modal .alt-node .alt-main {
+    flex: 1; position: relative; overflow: hidden;
+    background: #0a0b0e;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 13px;
+    flex-direction: column; gap: 8px;
+  }
+  #alt-modal .alt-node .alt-main img {
+    width: 100%; height: 100%; object-fit: contain;
+    pointer-events: none; -webkit-user-drag: none;
+    position: absolute; inset: 0;
+  }
+  #alt-modal .alt-node .alt-label {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(0,0,0,.7); color: #fff;
+    border: 1px solid rgba(255,255,255,.1); outline: none;
+    padding: 4px 10px; border-radius: 4px;
+    font: 700 13px/1.2 inherit;
+    z-index: 3; max-width: 50%;
+  }
+  #alt-modal .alt-node .alt-label:focus { border-color: var(--accent); }
+  #alt-modal .alt-node .alt-status-row {
+    padding: 6px 10px;
+    background: rgba(0,0,0,.45);
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex; gap: 6px;
+    flex-shrink: 0;
+  }
+  #alt-modal .alt-node .alt-status-row .status-chip {
+    padding: 4px 12px; flex: 1;
+  }
   .item.note {
     background: #fff7c2; color: #2a2a2a;
     padding: 10px 12px;
@@ -220,17 +838,57 @@
   }
   .item.group.selected { border-color: var(--accent); }
 
+  /* Hidden-from-readers: visual signal for the EDITOR — small badge in
+     the top-left, content still fully visible. */
+  .item.hidden-flag::before {
+    content: "🔒 hidden";
+    position: absolute; top: 4px; left: 4px; z-index: 6;
+    background: rgba(241,196,15,.95); color: #2a2a2a;
+    padding: 2px 7px; border-radius: 4px;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  /* Hidden-from-readers: what READERS actually see — image is blurred +
+     desaturated, a "COMING SOON" overlay sits on top. */
+  .item.hidden-from-readers .image-main,
+  .item.hidden-from-readers .image-notes,
+  .item.hidden-from-readers .pills-bar,
+  .item.hidden-from-readers .label,
+  .item.hidden-from-readers .node-corner-tools {
+    filter: blur(14px) grayscale(80%);
+    opacity: .35;
+    pointer-events: none;
+  }
+  .item.hidden-from-readers::after {
+    content: "Coming soon";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.25);
+    color: var(--muted);
+    font-size: 16px; font-weight: 700;
+    letter-spacing: .12em; text-transform: uppercase;
+    pointer-events: none;
+    z-index: 4;
+    border-radius: inherit;
+  }
+  /* Clickable edges around the tier frame — capture clicks on the dashed
+     border without blocking clicks inside the frame (items remain reachable). */
+  .item.group .group-edge {
+    position: absolute; pointer-events: auto;
+    background: transparent;
+  }
+  .item.group .group-edge.top    { left: 0; right: 0; top: -8px; height: 14px; cursor: move; }
+  .item.group .group-edge.bottom { left: 0; right: 0; bottom: -8px; height: 14px; cursor: move; }
+  .item.group .group-edge.left   { top: 0; bottom: 0; left: -8px; width: 14px; cursor: move; }
+  .item.group .group-edge.right  { top: 0; bottom: 0; right: -8px; width: 14px; cursor: move; }
+
   .item.slot {
     background: rgba(79,140,255,.05);
     border: 2px dashed rgba(79,140,255,.4);
-    display: flex; flex-direction: row;
     color: var(--muted); font-size: 12px;
     transition: background .15s, border-color .15s;
-  }
-  .item.slot .image-main {
-    flex: 1; position: relative; min-width: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 6px;
   }
   .item.slot.drag-over {
     background: rgba(79,140,255,.18);
@@ -482,16 +1140,16 @@
   #hover-tip .tip-links a:hover { background: rgba(79,140,255,.25); }
   #hover-tip .tip-empty { color: var(--muted); font-style: italic; }
 
-  /* Version modal */
+  /* Version modal — image takes max space, versions vertical on the left */
   #version-modal {
     position: fixed; inset: 0; z-index: 500; display: none;
   }
   #version-modal.visible { display: block; }
   #version-modal .vm-backdrop {
-    position: absolute; inset: 0; background: rgba(0,0,0,.78);
+    position: absolute; inset: 0; background: rgba(0,0,0,.85);
   }
   #version-modal .vm-content {
-    position: absolute; inset: 5%;
+    position: absolute; inset: 3%;
     background: var(--panel); border-radius: 12px;
     display: flex; flex-direction: column;
     box-shadow: 0 20px 60px rgba(0,0,0,.6);
@@ -499,55 +1157,93 @@
   }
   #version-modal .vm-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 20px;
-    border-bottom: 1px solid rgba(255,255,255,.1);
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    flex-shrink: 0;
+  }
+  #version-modal .vm-header-left {
+    display: flex; align-items: center; gap: 10px;
+    min-width: 0;
   }
   #version-modal .vm-header h2 {
-    margin: 0; font-size: 16px;
+    margin: 0; font-size: 14px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #version-modal .vm-header .vm-status {
-    font-size: 10px; padding: 3px 8px; border-radius: 4px;
-    margin-left: 10px; font-weight: 600;
+    font-size: 10px; padding: 2px 8px; border-radius: 3px;
+    font-weight: 600; letter-spacing: .04em;
     background: rgba(255,255,255,.08);
   }
+  #version-modal .vm-header-right {
+    display: flex; align-items: center; gap: 4px;
+    flex-shrink: 0;
+  }
+  #version-modal .vm-header-btn {
+    background: transparent; color: var(--text);
+    border: 1px solid transparent;
+    border-radius: 5px;
+    cursor: pointer; padding: 4px 8px;
+    font-size: 14px; line-height: 1;
+  }
+  #version-modal .vm-header-btn:hover { background: var(--panel-2); }
+  #version-modal .vm-header-btn.has-note { background: #fff7c2; color: #2a2a2a; }
+  #version-modal .vm-header-btn.has-note:hover { background: #fdf3a8; }
   #version-modal #vm-close {
     background: transparent; color: var(--text);
-    border: none; font-size: 28px; cursor: pointer;
-    padding: 0 8px; line-height: 1;
+    border: none; font-size: 24px; cursor: pointer;
+    padding: 0 6px; line-height: 1;
   }
+
+  #version-modal .vm-body {
+    flex: 1; display: flex; flex-direction: row;
+    min-height: 0;
+  }
+  #version-modal .vm-sidebar {
+    width: 124px; flex-shrink: 0;
+    overflow-y: auto;
+    padding: 10px;
+    background: rgba(0,0,0,.35);
+    border-right: 1px solid rgba(255,255,255,.06);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #version-modal .vm-alts {
+    width: 124px; flex-shrink: 0;
+    overflow-y: auto;
+    padding: 10px;
+    background: rgba(0,0,0,.35);
+    border-left: 1px solid rgba(255,255,255,.06);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #version-modal .vm-alts .vm-alts-title {
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .05em;
+    text-align: center; margin-bottom: 4px;
+  }
+  #version-modal .vm-alts-empty {
+    color: var(--muted); font-style: italic;
+    font-size: 11px; text-align: center;
+    padding: 8px 0;
+  }
+  #version-modal .vm-sidebar::-webkit-scrollbar { width: 6px; }
+  #version-modal .vm-sidebar::-webkit-scrollbar-thumb { background: var(--panel-2); border-radius: 3px; }
   #version-modal .vm-current {
-    flex: 1;
+    flex: 1; min-width: 0;
     display: flex; align-items: center; justify-content: center;
-    padding: 20px;
     background: #0a0b0e;
     overflow: hidden;
     position: relative;
+    padding: 12px;
   }
   #version-modal #vm-current-img {
     max-width: 100%; max-height: 100%; object-fit: contain;
   }
   #version-modal .vm-current-caption {
-    position: absolute; bottom: 14px; left: 20px;
+    position: absolute; bottom: 10px; left: 14px;
     color: var(--muted); font-size: 11px;
     background: rgba(0,0,0,.6); padding: 4px 10px; border-radius: 4px;
   }
-  #version-modal .vm-history h3 { /* placeholder so :empty doesn't kill the rule */ }
-  #version-modal .vm-history {
-    padding: 14px 20px;
-    border-top: 1px solid rgba(255,255,255,.1);
-    max-height: 200px;
-    overflow-y: auto;
-    background: rgba(0,0,0,.2);
-  }
-  #version-modal .vm-history h3 {
-    margin: 0 0 10px; font-size: 11px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .05em;
-  }
-  #version-modal #vm-history-list {
-    display: flex; gap: 10px; flex-wrap: wrap;
-  }
   #version-modal .vm-thumb {
-    width: 110px; height: 110px;
+    width: 100%; aspect-ratio: 1 / 1;
     background: #0f1014; border-radius: 5px;
     cursor: pointer; position: relative;
     border: 2px solid transparent;
@@ -590,15 +1286,426 @@
     z-index: 200; opacity: 0; transition: opacity .15s;
   }
   #drop-overlay.active { opacity: 1; }
+
+  /* ---------- Auth screen ---------- */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #auth-screen.visible { display: flex; }
+  #auth-screen .auth-card {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%; max-width: 380px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  #auth-screen h1 {
+    margin: 0 0 6px; font-size: 22px;
+  }
+  #auth-screen .auth-sub {
+    color: var(--muted); font-size: 13px;
+    margin: 0 0 24px;
+  }
+  #auth-screen label {
+    display: block; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em;
+    margin-bottom: 6px;
+  }
+  #auth-screen input {
+    width: 100%; padding: 10px 12px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 6px; font: inherit;
+    margin-bottom: 14px; outline: none;
+  }
+  #auth-screen input:focus { border-color: var(--accent); }
+  #auth-screen input.otp-input {
+    font: 700 22px/1.2 ui-monospace, monospace;
+    letter-spacing: .25em; text-align: center;
+  }
+  #auth-screen button.primary {
+    width: 100%; padding: 10px 12px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 6px;
+    font: 600 13px inherit; cursor: pointer;
+  }
+  #auth-screen button.primary:hover { filter: brightness(1.1); }
+  #auth-screen button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  #auth-screen button.link {
+    background: transparent; color: var(--muted);
+    border: none; cursor: pointer; font-size: 12px;
+    padding: 8px 0; text-decoration: underline;
+    width: 100%; margin-top: 8px;
+  }
+  #auth-screen .auth-error {
+    background: rgba(224,86,107,.12);
+    border: 1px solid rgba(224,86,107,.3);
+    color: var(--danger);
+    padding: 8px 12px; border-radius: 5px;
+    font-size: 12px; margin-bottom: 14px;
+    display: none;
+  }
+  #auth-screen .auth-error.visible { display: block; }
+  #auth-screen .auth-step { display: none; }
+  #auth-screen .auth-step.active { display: block; }
+  #auth-screen .local-only-note {
+    color: var(--muted); font-size: 11px; text-align: center;
+    margin-top: 16px; font-style: italic;
+  }
+
+  /* ---------- User menu in topbar ---------- */
+  #user-menu {
+    display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
+  }
+  #user-menu .user-info {
+    font-size: 11px; color: var(--muted);
+    display: flex; flex-direction: column; align-items: flex-end;
+    line-height: 1.2;
+  }
+  #user-menu .user-email { color: var(--text); font-weight: 600; }
+  #user-menu .role-badge {
+    font-size: 9px; padding: 1px 6px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .04em;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  #user-menu .role-badge.admin  { background: #f1c40f; color: #2a2a2a; }
+  #user-menu .role-badge.editor { background: #4f8cff; color: white; }
+  #user-menu .role-badge.reader { background: var(--panel-2); color: var(--muted); }
+  #user-menu button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+    font-weight: 600;
+  }
+  #user-menu button:hover { border-color: rgba(255,255,255,.15); }
+  #user-menu button.team-btn { color: #f1c40f; }
+  #user-menu a.vaguy-link {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+    font-weight: 600; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  #user-menu a.vaguy-link:hover { border-color: rgba(255,255,255,.15); }
+  #user-menu a.vaguy-link svg { flex-shrink: 0; }
+
+  /* ---------- Admin (members) modal ---------- */
+  #members-modal { position: fixed; inset: 0; z-index: 500; display: none; }
+  #members-modal.visible { display: block; }
+  #members-modal .mm-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.7); }
+  #members-modal .mm-content {
+    position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
+    width: 520px; max-width: 92vw; max-height: 80vh;
+    background: var(--panel); border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #members-modal .mm-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,.1);
+  }
+  #members-modal h2 { margin: 0; font-size: 15px; }
+  #members-modal #mm-close {
+    background: transparent; color: var(--text); border: none;
+    font-size: 24px; cursor: pointer; padding: 0 8px; line-height: 1;
+  }
+  #members-modal .mm-body {
+    flex: 1; overflow-y: auto; padding: 14px 18px;
+  }
+  #members-modal .member-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  #members-modal .member-row .member-email {
+    flex: 1; font-size: 12px; min-width: 120px;
+  }
+  #members-modal .member-row .member-displayname {
+    width: 130px; font-size: 11px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 4px;
+    padding: 3px 6px; font-family: inherit;
+  }
+  #members-modal .member-row select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 4px;
+    padding: 3px 6px; font: inherit; font-size: 11px;
+  }
+  #members-modal .member-row button.remove {
+    background: transparent; color: var(--danger);
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 3px 8px; cursor: pointer; font-size: 11px;
+  }
+  #members-modal .member-row button.remove:hover {
+    border-color: var(--danger);
+  }
+  #members-modal .mm-add {
+    border-top: 1px solid rgba(255,255,255,.1);
+    padding: 14px 18px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  #members-modal .mm-add input {
+    flex: 1; min-width: 180px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 4px;
+    padding: 6px 8px; font: inherit;
+  }
+  #members-modal .mm-add select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 4px;
+    padding: 6px 8px; font: inherit;
+  }
+  #members-modal .mm-add button {
+    background: var(--accent); color: white; border: none;
+    border-radius: 4px; padding: 6px 14px; cursor: pointer;
+    font-weight: 600;
+  }
+  #members-modal .mm-error {
+    color: var(--danger); font-size: 11px;
+    padding: 0 18px 8px;
+  }
+
+  /* ---------- Read-only mode ---------- */
+  body.readonly #toolbar > button:not(#btn-zoom-in):not(#btn-zoom-out):not(#btn-fit):not(#btn-reset):not(#btn-mode) {
+    display: none;
+  }
+  body.readonly #toolbar .sep { display: none; }
+  body.readonly #inspector { display: none !important; }
+  body.readonly .item:not(.group) { cursor: default; }
+  body.readonly .item.image .image-notes .note-text { cursor: default; }
+  body.readonly .tier-select { pointer-events: none; opacity: .8; }
+  body.readonly .node-corner-tools .star-icon { cursor: default; }
+  body.readonly .btn-add-tab { display: none; }
+  body.readonly .tab-close { display: none; }
+  body.readonly #release-title { pointer-events: none; }
+
+  /* Image migration banner (Phase 4.5 — runs once per board to move data URLs to Storage) */
+  #migration-banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 95; padding: 8px 16px;
+    background: var(--warn); color: #2a2a2a;
+    font-size: 12px; font-weight: 600;
+    display: none; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  }
+  #migration-banner.visible { display: flex; }
+  #migration-banner .mb-bar {
+    flex: 1; height: 6px; background: rgba(0,0,0,.2);
+    border-radius: 3px; overflow: hidden;
+  }
+  #migration-banner .mb-bar > div {
+    height: 100%; background: #2a2a2a; transition: width .2s;
+  }
+  #migration-banner .mb-count {
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+
+  /* Sync indicator */
+  #sync-indicator {
+    position: fixed; bottom: 32px; right: 12px;
+    background: var(--panel); color: var(--muted);
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 10px; z-index: 90;
+    border: 1px solid rgba(255,255,255,.08);
+    display: none;
+  }
+  #sync-indicator.visible { display: block; }
+  #sync-indicator.saving { color: var(--warn); }
+  #sync-indicator.saved  { color: var(--ok); }
+  #sync-indicator.error  { color: var(--danger); }
 </style>
 </head>
 <body>
 
+<div id="topbar-reveal-hint"></div>
 <div id="topbar">
-  <input id="release-title" type="text" placeholder="Release name…" />
+  <div class="title-row">
+    <input id="release-title" type="text" placeholder="Release name…" />
+    <div class="filter-row">
+      <span class="filter-label">Show:</span>
+      <button class="filter-btn" data-f="leader">Leader</button>
+      <button class="filter-btn" data-f="overlord">Overlord</button>
+      <button class="filter-btn active" data-f="sovereign">Sovereign</button>
+    </div>
+    <div id="user-menu" style="display:none">
+      <div class="user-info">
+        <span class="user-email" id="user-email-display"></span>
+        <span class="role-badge" id="user-role-badge"></span>
+      </div>
+      <a class="vaguy-link" href="https://vaguy-studio.netlify.app" target="_blank" rel="noopener" title="Vaguy Studio">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M2 9c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/>
+          <path d="M2 15c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/>
+        </svg>
+        Vaguy
+      </a>
+      <button id="btn-backoffice" title="Open the back office (workorders, billing)">Back office →</button>
+      <button id="btn-team" class="team-btn" style="display:none" title="Manage team">Team</button>
+      <button id="btn-settings" title="Settings (AI provider, prompts...)">⚙ Settings</button>
+      <button id="btn-set-password" title="Set or change your password">Password</button>
+      <button id="btn-logout" title="Log out">Logout</button>
+    </div>
+  </div>
   <div id="year-tabs"   class="topbar-tabs"></div>
   <div id="release-tabs" class="topbar-tabs"></div>
 </div>
+
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>Release Board</h1>
+    <p class="auth-sub">Sign in with your email to access the team's board.</p>
+    <div class="auth-error" id="auth-error"></div>
+
+    <div class="auth-step active" id="auth-step-email">
+      <label for="auth-email">Email</label>
+      <input type="email" id="auth-email" placeholder="you@company.com" autocomplete="email" />
+      <label for="auth-password">Password</label>
+      <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" />
+      <button class="primary" id="auth-password-btn">Sign in</button>
+      <p style="margin:14px 0 0;color:var(--muted);font-size:11px;text-align:center;line-height:1.5">
+        No account yet? Ask your admin to invite you.<br>
+        Forgot your password? Ask your admin to reset it.
+      </p>
+    </div>
+
+    <p class="local-only-note" id="local-only-note" style="display:none">
+      Supabase isn't configured — running in local-only mode.
+    </p>
+  </div>
+</div>
+
+<div id="members-modal">
+  <div class="mm-backdrop"></div>
+  <div class="mm-content">
+    <div class="mm-header">
+      <h2>Team members</h2>
+      <button id="mm-close" title="Close (Esc)">×</button>
+    </div>
+    <div class="mm-body" id="mm-body"></div>
+    <div class="mm-error" id="mm-error"></div>
+    <div class="mm-add">
+      <input type="email"    id="mm-new-email"        placeholder="email@company.com" />
+      <input type="text"     id="mm-new-displayname"  placeholder="Display name (e.g. Marie)" />
+      <input type="password" id="mm-new-password"     placeholder="password (min 6 chars)" />
+      <select id="mm-new-role">
+        <option value="reader">Reader</option>
+        <option value="editor">Editor</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button id="mm-add-btn">+ Add</button>
+    </div>
+    <div style="padding:0 18px 12px;color:var(--muted);font-size:11px;line-height:1.5">
+      Display name = how this person appears in the Artist dropdown on cards. You choose the initial password; communicate it via Signal/chat — they can change it via the Password button.
+    </div>
+  </div>
+</div>
+
+<div id="password-modal" style="position:fixed;inset:0;z-index:550;display:none">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.7)" id="pw-backdrop"></div>
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border-radius:10px;padding:20px;width:340px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <h2 style="margin:0 0 16px;font-size:15px">Set / change password</h2>
+    <p style="margin:0 0 14px;color:var(--muted);font-size:12px">For faster login next time. Min. 6 characters.</p>
+    <label style="display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">New password</label>
+    <input type="password" id="pw-new" autocomplete="new-password" style="width:100%;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:5px;font:inherit;margin-bottom:10px" />
+    <label style="display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Confirm</label>
+    <input type="password" id="pw-confirm" autocomplete="new-password" style="width:100%;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:5px;font:inherit;margin-bottom:14px" />
+    <div id="pw-error" style="color:var(--danger);font-size:11px;margin-bottom:10px;display:none"></div>
+    <div id="pw-success" style="color:var(--ok);font-size:11px;margin-bottom:10px;display:none">Password updated ✓</div>
+    <div style="display:flex;gap:8px">
+      <button id="pw-cancel" style="flex:1;padding:8px;background:var(--panel-2);color:var(--text);border:none;border-radius:5px;cursor:pointer">Cancel</button>
+      <button id="pw-save" style="flex:1;padding:8px;background:var(--accent);color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="migration-banner">
+  <span>Migrating images to Storage — keeps saves fast</span>
+  <div class="mb-bar"><div id="mb-progress"></div></div>
+  <span class="mb-count" id="mb-count">0 / 0</span>
+</div>
+
+<div id="settings-modal">
+  <div class="sm-backdrop"></div>
+  <div class="sm-content">
+    <div class="sm-header">
+      <h2>⚙ Settings</h2>
+      <button class="sm-close" id="sm-close">×</button>
+    </div>
+    <div class="sm-body">
+      <label>AI provider for name generation</label>
+      <select id="set-ai-provider">
+        <option value="">None (disable AI features)</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="openai">OpenAI ChatGPT</option>
+      </select>
+      <div class="sm-hint">
+        🔒 API keys are stored <b>server-side</b> in the Supabase Edge Function <code>ai-proxy</code>
+        — never exposed to the browser. Admin: set <code>ANTHROPIC_API_KEY</code> /
+        <code>OPENAI_API_KEY</code> in Supabase Dashboard → Edge Functions → Secrets.
+      </div>
+
+      <label>Model</label>
+      <input type="text" id="set-ai-model" placeholder="e.g. claude-haiku-4-5 / gpt-4o-mini" />
+      <div class="sm-hint">Leave blank to use a sensible default.</div>
+
+      <label>System prompt</label>
+      <textarea id="set-ai-prompt" rows="6" placeholder="You are a creative name generator for fantasy miniatures..."></textarea>
+      <div class="sm-hint">Used to guide name generation. Tokens <code>{description}</code> and <code>{negative}</code> will be replaced.</div>
+
+      <label>Default negative prompts (words/refs to avoid)</label>
+      <textarea id="set-ai-negative" rows="3" placeholder="comma-separated or one per line — e.g.&#10;cliché names, Latin, brand names"></textarea>
+    </div>
+    <div class="sm-footer">
+      <span class="sm-saved" id="sm-saved">Saved ✓</span>
+      <button id="sm-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="namegen-popup">
+  <h3>
+    <span>✨ Suggest a name</span>
+    <button class="ng-close" id="ng-close" title="Close (Esc)">×</button>
+  </h3>
+  <label>Description (what is this character?)</label>
+  <textarea id="ng-description" rows="3" placeholder="e.g. female undead sorceress in heavy armor, gothic style"></textarea>
+  <label>Extra things to avoid (optional)</label>
+  <textarea id="ng-negative" rows="2" placeholder="extra negatives specific to this character"></textarea>
+  <label class="ng-checkbox">
+    <input type="checkbox" id="ng-use-image" /> Include the current image as visual reference
+  </label>
+  <div class="ng-status" id="ng-status"></div>
+  <div class="ng-actions">
+    <button class="secondary" id="ng-regen" style="display:none">↻ Try again</button>
+    <button id="ng-generate">Generate</button>
+  </div>
+  <div class="ng-result" id="ng-result">
+    <div id="ng-result-text"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button style="flex:1;padding:6px;background:var(--ok);color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600" id="ng-use">Use this name</button>
+    </div>
+  </div>
+  <div class="ng-error" id="ng-error"></div>
+</div>
+
+<div id="note-tip"></div>
+
+<div id="note-popup">
+  <div class="np-header">
+    <span class="np-title" id="np-title">Note</span>
+    <button class="np-close" id="np-close" title="Close (Esc)">×</button>
+  </div>
+  <textarea id="np-textarea" placeholder="Write your note..."></textarea>
+  <div class="np-colors" id="np-colors"></div>
+  <div class="np-hint">Saved automatically</div>
+</div>
+
+<div id="sync-indicator"></div>
 
 <div id="viewport">
   <div id="world"></div>
@@ -621,7 +1728,10 @@
   <button id="btn-export" title="Export JSON">Export</button>
   <button id="btn-import" title="Import JSON">Import</button>
   <button id="btn-clear"  title="Clear board" style="color:var(--danger)">Clear</button>
+  <div class="sep"></div>
+  <button id="btn-toolbar-collapse" class="tb-toggle" title="Hide toolbar">⟨</button>
 </div>
+<button id="btn-toolbar-reveal" title="Show toolbar">⟩</button>
 
 <div id="inspector">
   <h3>Selected item</h3>
@@ -637,7 +1747,23 @@
       <div class="status-chip" data-st="approved">OK</div>
     </div>
     <label>Artist
-      <input type="text" id="insp-artist" placeholder="e.g. Marie" />
+      <select id="insp-artist"
+        style="width:100%;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:6px 8px;font:inherit;margin-top:4px">
+        <option value="">(none)</option>
+      </select>
+      <span id="insp-artist-legacy" style="display:none;font-size:10px;color:var(--muted);margin-top:4px"></span>
+    </label>
+    <label>Character type
+      <select id="insp-character-type"
+        style="width:100%;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:6px 8px;font:inherit;margin-top:4px">
+        <option value="">(none)</option>
+        <option value="hero">Hero</option>
+        <option value="troop">Troop</option>
+        <option value="monster">Monster</option>
+        <option value="scenery">Scenery</option>
+        <option value="centerpiece">Centerpiece</option>
+        <option value="diorama">Diorama</option>
+      </select>
     </label>
     <label>Base size
       <input type="text" id="insp-base" placeholder="e.g. 32mm round" />
@@ -655,6 +1781,23 @@
       <textarea id="insp-note" placeholder="Short note..." rows="3"
         style="width:100%;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:6px 8px;font:inherit;margin-top:4px;resize:vertical"></textarea>
     </label>
+    <label>Tier
+      <select id="insp-tier"
+        style="width:100%;background:var(--bg);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:6px 8px;font:inherit;margin-top:4px">
+        <option value="">(none)</option>
+        <option value="leader">Leader</option>
+        <option value="overlord">Overlord</option>
+        <option value="sovereign">Sovereign</option>
+      </select>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+      <input type="checkbox" id="insp-has-alt" style="margin:0" />
+      Has alt version (★)
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer" title="Readers see a blurred 'Coming soon' placeholder instead of the image.">
+      <input type="checkbox" id="insp-hidden" style="margin:0" />
+      Hidden from readers (🔒)
+    </label>
   </div>
   <button class="danger-btn" id="insp-delete">Delete (Del)</button>
 </div>
@@ -668,20 +1811,55 @@
 <div id="ctx-menu"></div>
 <div id="hover-tip"></div>
 
+<div id="alt-modal">
+  <div class="alt-backdrop"></div>
+  <div class="alt-content">
+    <div class="alt-header">
+      <h2><span class="alt-tag">ALT</span><span id="alt-parent-name">Alt version</span></h2>
+      <div class="alt-header-right">
+        <button id="alt-note-btn" class="alt-header-btn" title="Note">📝</button>
+        <button id="alt-close" title="Close (Esc)">×</button>
+      </div>
+    </div>
+    <div class="alt-body">
+      <div class="alt-node" id="alt-node">
+        <input class="alt-label" id="alt-label" type="text" placeholder="Name…" />
+        <div class="content-row">
+          <div class="alt-main" id="alt-main">
+            <div id="alt-placeholder">Drop or Ctrl+V to add image</div>
+          </div>
+        </div>
+        <div class="alt-status-row">
+          <div class="status-chip" data-st="sketch">Sketch</div>
+          <div class="status-chip" data-st="wip">WIP</div>
+          <div class="status-chip" data-st="review">Review</div>
+          <div class="status-chip" data-st="approved">OK</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="version-modal">
   <div class="vm-backdrop"></div>
   <div class="vm-content">
     <div class="vm-header">
-      <h2><span id="vm-title">Versions</span><span class="vm-status" id="vm-status"></span></h2>
-      <button id="vm-close" title="Close (Esc)">×</button>
+      <div class="vm-header-left">
+        <h2 id="vm-title">Versions</h2>
+        <span class="vm-status" id="vm-status"></span>
+      </div>
+      <div class="vm-header-right">
+        <button id="vm-note-btn" class="vm-header-btn" title="Note">📝</button>
+        <button id="vm-close" title="Close (Esc)">×</button>
+      </div>
     </div>
-    <div class="vm-current">
-      <img id="vm-current-img" />
-      <div class="vm-current-caption" id="vm-current-caption"></div>
-    </div>
-    <div class="vm-history">
-      <h3>Version history</h3>
-      <div id="vm-history-list"></div>
+    <div class="vm-body">
+      <div class="vm-sidebar" id="vm-history-list"></div>
+      <div class="vm-current">
+        <img id="vm-current-img" />
+        <div class="vm-current-caption" id="vm-current-caption"></div>
+      </div>
+      <div class="vm-alts" id="vm-alts-list"></div>
     </div>
   </div>
 </div>
@@ -689,6 +1867,74 @@
 <input type="file" id="file-picker" accept="image/*" multiple style="display:none" />
 
 <script>
+// ---------- Supabase config ----------
+// Fill these from your Supabase project (Settings → API).
+// Leave both empty to run in offline localStorage-only mode (no auth).
+const SUPABASE_URL      = "https://jwokrnrpmzscmnazzmci.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5xhGx3Sz0TiCz8RDVcH7kg_POFKcPkl";
+
+let USE_SUPABASE = !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+let sb = null;
+// Show auth screen immediately to avoid flash of unauthenticated content.
+// We'll hide it later if SDK fails to load or we're in local mode.
+if (USE_SUPABASE) {
+  document.getElementById("auth-screen").classList.add("visible");
+}
+
+// Dynamically load the Supabase SDK ONLY when we actually need it.
+// This way the page loads instantly even if the CDN is slow/blocked.
+async function loadSupabaseSdk() {
+  if (window.supabase) return true;
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+    s.async = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    // Safety timeout — if CDN doesn't respond in 8s, give up
+    setTimeout(() => resolve(false), 8000);
+  });
+}
+async function initSupabase() {
+  if (!USE_SUPABASE) return false;
+  const ok = await loadSupabaseSdk();
+  if (!ok || !window.supabase) {
+    console.error("Supabase SDK could not load — falling back to local mode.");
+    USE_SUPABASE = false;
+    return false;
+  }
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storage: window.localStorage,
+      },
+    });
+    return true;
+  } catch (e) {
+    console.error("Supabase client init failed", e);
+    USE_SUPABASE = false;
+    return false;
+  }
+}
+
+let currentUser = null;        // { email, role } when logged in
+let realtimeChannel = null;
+let savePendingTimer = null;
+let isApplyingRemote = false;  // when true, save() should be a no-op
+let lastSeenUpdatedAt = null;  // updated_at of the last row version we loaded/wrote — optimistic lock
+
+function canEdit() {
+  if (!USE_SUPABASE) return true; // local-only mode = always editable
+  return currentUser && (currentUser.role === "admin" || currentUser.role === "editor");
+}
+function isAdmin() {
+  return USE_SUPABASE && currentUser && currentUser.role === "admin";
+}
+
 // ---------- State ----------
 const STORAGE_KEY = "figma-board-v1";
 let state = {
@@ -715,8 +1961,22 @@ function cb() {
 }
 
 let selectedId = null;
+// Multi-selection: selectedId stays as the "primary" (used by inspector for the
+// single-item case). selectedIds is the Set of all selected items.
+// Invariant: if selectedIds is non-empty, selectedId is one of them.
+let selectedIds = new Set();
 let spaceDown = false;
 let viewMode = "detail"; // "detail" | "overview"
+let currentFilter = "sovereign"; // "leader" | "overlord" | "sovereign" — sovereign = show all
+
+function matchesFilter(item) {
+  // Filter only applies to image and slot items; everything else (notes, groups) always shows
+  if (item.type !== "image" && item.type !== "slot") return true;
+  if (currentFilter === "sovereign") return true;
+  if (currentFilter === "overlord") return item.tier === "leader" || item.tier === "overlord";
+  if (currentFilter === "leader")   return item.tier === "leader";
+  return true;
+}
 
 const INFO_FIELDS = [
   { kind: "brief",  icon: "📄", letter: "B", label: "Brief" },
@@ -758,14 +2018,143 @@ const inspLabel= document.getElementById("insp-label");
 const overlay  = document.getElementById("drop-overlay");
 const filePicker = document.getElementById("file-picker");
 
-// ---------- Persistence ----------
-function save() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.warn("Save failed (storage full?)", e);
+// ---------- Auto-hide topbar ----------
+// The topbar is shown if the cursor is within TOPBAR_REVEAL_ZONE px of the
+// top of the viewport, OR while a 3s boot grace is active. The thin blue
+// strip (#topbar-reveal-hint) hints that there's something to reveal.
+// Important: we suppress the reveal when the cursor sits on the toolbar or
+// inspector — otherwise those buttons would be covered the moment you try
+// to click them.
+const TOPBAR_REVEAL_ZONE = 26;
+const topbarEl = document.getElementById("topbar");
+let topbarGrace = true;
+setTimeout(() => { topbarGrace = false; refreshTopbarVisibility(); }, 3000);
+let lastMouseX = 0, lastMouseY = 9999;
+function isCursorOverFloatingUi() {
+  if (lastMouseX === 0 && lastMouseY === 9999) return false;
+  const el = document.elementFromPoint(lastMouseX, lastMouseY);
+  if (!el) return false;
+  return !!(el.closest && (
+    el.closest("#toolbar") ||
+    el.closest("#inspector") ||
+    el.closest("#btn-toolbar-reveal")
+  ));
+}
+let topbarHideTimer = null;
+const TOPBAR_HIDE_DELAY = 3000; // ms — wait before the bar slides back up
+function refreshTopbarVisibility() {
+  const inZone = lastMouseY < TOPBAR_REVEAL_ZONE;
+  const wantShow = topbarGrace || (inZone && !isCursorOverFloatingUi());
+
+  if (wantShow) {
+    // Cancel any pending hide and show immediately
+    if (topbarHideTimer) { clearTimeout(topbarHideTimer); topbarHideTimer = null; }
+    topbarEl.classList.remove("hidden");
+    document.body.classList.remove("topbar-hidden");
+  } else {
+    // Already scheduled? leave it
+    if (topbarHideTimer) return;
+    // Already hidden? nothing to do
+    if (topbarEl.classList.contains("hidden")) return;
+    // Schedule the hide after the delay
+    topbarHideTimer = setTimeout(() => {
+      topbarHideTimer = null;
+      // Re-check in case the cursor came back during the wait
+      const stillInZone = lastMouseY < TOPBAR_REVEAL_ZONE;
+      if (stillInZone && !isCursorOverFloatingUi()) return;
+      topbarEl.classList.add("hidden");
+      document.body.classList.add("topbar-hidden");
+    }, TOPBAR_HIDE_DELAY);
   }
 }
+window.addEventListener("mousemove", e => {
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  refreshTopbarVisibility();
+});
+// If mouse leaves the window (alt-tab, switch tab) — hide.
+window.addEventListener("mouseout", e => {
+  if (e.relatedTarget === null) {
+    lastMouseY = 9999;
+    refreshTopbarVisibility();
+  }
+});
+
+// ---------- Toolbar collapse (Blender N-panel style) ----------
+const TOOLBAR_COLLAPSED_KEY = "rh.toolbarCollapsed";
+function setToolbarCollapsed(collapsed) {
+  document.body.classList.toggle("toolbar-collapsed", collapsed);
+  try { localStorage.setItem(TOOLBAR_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch (e) { /* quota */ }
+}
+// Restore last state
+try {
+  if (localStorage.getItem(TOOLBAR_COLLAPSED_KEY) === "1") {
+    document.body.classList.add("toolbar-collapsed");
+  }
+} catch (e) {}
+document.getElementById("btn-toolbar-collapse").addEventListener("click", () => setToolbarCollapsed(true));
+document.getElementById("btn-toolbar-reveal").addEventListener("click",   () => setToolbarCollapsed(false));
+
+// ---------- Persistence ----------
+function save() {
+  if (isApplyingRemote) return;             // don't echo remote updates back
+  if (USE_SUPABASE && !canEdit()) return;   // read-only users don't save
+  // localStorage is always written as a quick local cache
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn("LocalStorage save failed", e); }
+  // When connected to Supabase, push to cloud (debounced)
+  if (USE_SUPABASE && currentUser) scheduleCloudSave();
+}
+
+// Debounced cloud save — coalesce many local mutations into a single write
+function scheduleCloudSave() {
+  if (savePendingTimer) clearTimeout(savePendingTimer);
+  setSyncStatus("pending");
+  savePendingTimer = setTimeout(cloudSave, 700);
+}
+async function cloudSave() {
+  if (!sb || !currentUser || !canEdit()) return;
+  savePendingTimer = null;
+  setSyncStatus("saving");
+  // Only sync the shared portion (currentBoardId stays per-user-session)
+  const sharedData = { boards: state.boards, nextBoardId: state.nextBoardId };
+  // Diagnostic: a healthy post-migration payload is a few hundred KB at most.
+  // MBs here mean base64 images are still in the jsonb (migration pending).
+  console.info(`[sync] payload ~${Math.round(JSON.stringify(sharedData).length / 1024)} KB`);
+  // Optimistic lock: only write over the row version we last saw. A client that
+  // missed realtime updates (sleep, network drop, old tab) would otherwise wipe
+  // everyone else's work with its stale copy — the main "things disappear" bug.
+  let q = sb.from("boards_data")
+    .update({ data: sharedData, updated_at: new Date().toISOString(), updated_by: currentUser.email })
+    .eq("id", "default");
+  if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
+  const { data, error } = await q.select("updated_at");
+  if (error) {
+    console.error("Cloud save error", error);
+    setSyncStatus("error", error.message);
+  } else if (!data || data.length === 0) {
+    // Conflict: someone wrote since our last sync — never overwrite blindly.
+    console.warn("Sync conflict — fetching latest board");
+    setSyncStatus("conflict");
+    await refetchRemote();
+  } else {
+    lastSeenUpdatedAt = data[0].updated_at;
+    setSyncStatus("saved");
+  }
+}
+function setSyncStatus(kind, msg) {
+  const el = document.getElementById("sync-indicator");
+  if (!el) return;
+  if (!USE_SUPABASE) { el.classList.remove("visible"); return; }
+  el.classList.add("visible");
+  el.classList.remove("saving", "saved", "error");
+  if (kind === "pending") { el.textContent = "•"; }
+  if (kind === "saving")  { el.classList.add("saving"); el.textContent = "Saving…"; }
+  if (kind === "saved")   { el.classList.add("saved");  el.textContent = "Saved ✓"; setTimeout(() => { if (el.textContent === "Saved ✓") el.classList.remove("visible"); }, 1500); }
+  if (kind === "error")   { el.classList.add("error");  el.textContent = "Sync error" + (msg ? ` — ${msg}` : ""); }
+  if (kind === "conflict") { el.classList.add("error"); el.textContent = "⚠ Board modifié par quelqu'un d'autre — rechargé. Revérifie ta dernière modif."; }
+}
+
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
@@ -793,27 +2182,453 @@ function load() {
     }
 
     // Per-item migrations across every board
-    for (const board of state.boards) {
-      for (const it of board.items) {
-        if (it.loomLink && !it.briefLink) {
-          it.briefLink = it.loomLink;
-          delete it.loomLink;
-        }
-        if (it.infoLayout && it.infoLayout.loom && !it.infoLayout.brief) {
-          it.infoLayout.brief = it.infoLayout.loom;
-          delete it.infoLayout.loom;
-        }
-        // legacy "note" info-pill layout no longer used (notes are integrated)
-        if (it.infoLayout && it.infoLayout.note) delete it.infoLayout.note;
-      }
-    }
+    runItemMigrations(state.boards);
   } catch (e) { console.warn("Load failed", e); }
+}
+
+function runItemMigrations(boards) {
+  for (const board of boards) {
+    for (const it of board.items) {
+      if (it.loomLink && !it.briefLink) {
+        it.briefLink = it.loomLink;
+        delete it.loomLink;
+      }
+      if (it.infoLayout && it.infoLayout.loom && !it.infoLayout.brief) {
+        it.infoLayout.brief = it.infoLayout.loom;
+        delete it.infoLayout.loom;
+      }
+      if (it.infoLayout && it.infoLayout.note) delete it.infoLayout.note;
+    }
+  }
+}
+
+// ---------- Cloud load + realtime ----------
+async function cloudLoad() {
+  if (!sb) return false;
+  const { data, error } = await sb.from("boards_data").select("data, updated_at").eq("id", "default").single();
+  if (error) { console.error("Cloud load error", error); return false; }
+  if (data && data.data) {
+    lastSeenUpdatedAt = data.updated_at || null;
+    isApplyingRemote = true;
+    const remote = data.data;
+    state.boards = remote.boards || [];
+    state.nextBoardId = remote.nextBoardId || 1;
+    // Make sure currentBoardId is still valid
+    if (!state.boards.find(b => b.id === state.currentBoardId)) {
+      state.currentBoardId = state.boards[0]?.id ?? null;
+    }
+    runItemMigrations(state.boards);
+    isApplyingRemote = false;
+  }
+  return true;
+}
+
+// Re-pull the board from Supabase and re-render if it changed. Used after a
+// sync conflict, when the tab regains focus/network, when the realtime channel
+// (re)subscribes, and when a realtime payload arrives truncated — any moment
+// where we may have missed updates.
+let refetchInFlight = false;
+async function refetchRemote() {
+  if (!sb || !currentUser) return;
+  // Don't clobber work the user is in the middle of
+  if (savePendingTimer || drag || resize || pillDrag || pan) return;
+  if (refetchInFlight) return;
+  refetchInFlight = true;
+  try {
+    // Cheap version probe first — the full row can be several MB
+    const { data, error } = await sb.from("boards_data")
+      .select("updated_at").eq("id", "default").single();
+    if (error || !data) return;
+    if (data.updated_at && data.updated_at === lastSeenUpdatedAt) return;
+    const prev = lastSeenUpdatedAt;
+    const ok = await cloudLoad();
+    if (ok && lastSeenUpdatedAt !== prev) {
+      selectedId = null;
+      applyView();
+      render();
+      renderTopbar();
+      scheduleMigrationIfNeeded();
+    }
+  } finally {
+    refetchInFlight = false;
+  }
+}
+window.addEventListener("focus", () => refetchRemote());
+window.addEventListener("online", () => refetchRemote());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refetchRemote();
+});
+
+function subscribeRealtime() {
+  if (!sb) return;
+  if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeChannel = sb
+    .channel("boards_data_sync")
+    .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "boards_data", filter: "id=eq.default" },
+        payload => {
+          // Rows bigger than ~1MB (base64 images in the jsonb) arrive TRUNCATED:
+          // payload.new comes without data/updated_by. Never touch state from a
+          // truncated payload — refetch the full row instead. (The old code threw
+          // here and left isApplyingRemote stuck at true, silently killing save().)
+          if (!payload.new?.data) { refetchRemote(); return; }
+          if (payload.new.updated_by === currentUser?.email) return; // our own echo
+          if (drag || resize || pillDrag || pan) return; // don't disrupt active interactions
+          lastSeenUpdatedAt = payload.new.updated_at || lastSeenUpdatedAt;
+          try {
+            isApplyingRemote = true;
+            state.boards = payload.new.data.boards || [];
+            state.nextBoardId = payload.new.data.nextBoardId || 1;
+            if (!state.boards.find(b => b.id === state.currentBoardId)) {
+              state.currentBoardId = state.boards[0]?.id ?? null;
+            }
+            runItemMigrations(state.boards);
+          } finally {
+            isApplyingRemote = false;
+          }
+          selectedId = null;
+          applyView();
+          render();
+          renderTopbar();
+          scheduleMigrationIfNeeded();
+        })
+    .subscribe(status => {
+      // After any (re)connection, catch up on updates missed while offline
+      if (status === "SUBSCRIBED") refetchRemote();
+    });
+}
+
+// ---------- Auth ----------
+async function authInit() {
+  if (!USE_SUPABASE) {
+    document.getElementById("local-only-note").style.display = "block";
+    document.getElementById("auth-screen").classList.remove("visible");
+    return false;
+  }
+  // Check existing session
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user?.email) {
+    const ok = await loadCurrentUser(session.user.email);
+    if (ok) {
+      hideAuthScreen();   // ← session restored, dismiss the login overlay
+      return true;
+    }
+  }
+  showAuthScreen();
+  return false;
+}
+
+async function loadCurrentUser(email) {
+  const { data, error } = await sb.from("members").select("email, role, display_name").eq("email", email).maybeSingle();
+  if (error) {
+    console.error("Member lookup failed", error);
+    showAuthError("Lookup failed: " + error.message);
+    return false;
+  }
+  if (!data) {
+    showAuthError(`${email} is not invited yet. Ask an admin to add you.`);
+    await sb.auth.signOut();
+    return false;
+  }
+  currentUser = { email: data.email, role: data.role, display_name: data.display_name || null };
+  return true;
+}
+
+// ---------- Members directory cache (for the artist dropdown) ----------
+// All authenticated members can read the members table (RLS policy).
+// We cache the list locally so the inspector dropdown is fast.
+let membersCache = []; // [{ email, display_name, role }]
+async function loadMembersCache() {
+  if (!sb) return;
+  const { data, error } = await sb.from("members").select("email, display_name, role").order("email");
+  if (error) { console.warn("Members cache load failed", error); return; }
+  membersCache = data || [];
+}
+function memberDisplayName(email) {
+  if (!email) return "";
+  const m = membersCache.find(x => x.email === email);
+  if (m && m.display_name) return m.display_name;
+  // Fallback: derive from the email local-part so something still shows
+  // even if the cache hasn't been populated yet or the member was removed.
+  return email.split("@")[0] || email;
+}
+
+async function signInWithPassword(email, password) {
+  const errEl = document.getElementById("auth-error");
+  errEl.classList.remove("visible");
+  const btn = document.getElementById("auth-password-btn");
+  btn.disabled = true; btn.textContent = "Signing in…";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = "Sign in";
+  if (error) {
+    if (/invalid login credentials/i.test(error.message)) {
+      showAuthError("Wrong email or password. Ask your admin if you're not sure.");
+    } else {
+      showAuthError(error.message);
+    }
+    return;
+  }
+  const ok = await loadCurrentUser(email);
+  if (!ok) return;
+  hideAuthScreen();
+  await bootApp();
+}
+
+async function sendOtp(email) {
+  const errEl = document.getElementById("auth-error");
+  errEl.classList.remove("visible");
+  const btn = document.getElementById("auth-send-btn");
+  btn.disabled = true; btn.textContent = "Sending…";
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true }
+  });
+  btn.disabled = false; btn.textContent = "Send code";
+  if (error) { showAuthError(error.message); return; }
+  showAuthStep("otp");
+  document.getElementById("auth-otp").focus();
+}
+
+async function verifyOtp(email, token) {
+  const errEl = document.getElementById("auth-error");
+  errEl.classList.remove("visible");
+  const btn = document.getElementById("auth-verify-btn");
+  btn.disabled = true; btn.textContent = "Verifying…";
+  const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+  btn.disabled = false; btn.textContent = "Verify";
+  if (error) { showAuthError(error.message); return; }
+  const ok = await loadCurrentUser(email);
+  if (!ok) return;
+  hideAuthScreen();
+  await bootApp();
+}
+
+async function logout() {
+  if (sb) await sb.auth.signOut();
+  currentUser = null;
+  if (realtimeChannel) { sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  location.reload();
+}
+
+function showAuthScreen() {
+  document.getElementById("auth-screen").classList.add("visible");
+  showAuthStep("email");
+}
+function hideAuthScreen() {
+  document.getElementById("auth-screen").classList.remove("visible");
+}
+function showAuthStep(step) {
+  document.querySelectorAll(".auth-step").forEach(el => el.classList.remove("active"));
+  document.getElementById("auth-step-" + step).classList.add("active");
+}
+function showAuthError(msg) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.classList.add("visible");
+}
+
+// Apply role-based UI state
+function applyRoleUI() {
+  document.body.classList.toggle("readonly", USE_SUPABASE && currentUser?.role === "reader");
+  const menu = document.getElementById("user-menu");
+  if (USE_SUPABASE && currentUser) {
+    menu.style.display = "flex";
+    document.getElementById("user-email-display").textContent = currentUser.email;
+    const badge = document.getElementById("user-role-badge");
+    badge.textContent = currentUser.role;
+    badge.className = "role-badge " + currentUser.role;
+    document.getElementById("btn-team").style.display = isAdmin() ? "inline-block" : "none";
+  } else {
+    menu.style.display = "none";
+  }
+}
+
+// ---------- Members admin modal ----------
+async function openMembersModal() {
+  if (!isAdmin()) return;
+  document.getElementById("members-modal").classList.add("visible");
+  await refreshMembersList();
+}
+function closeMembersModal() {
+  document.getElementById("members-modal").classList.remove("visible");
+  document.getElementById("mm-error").textContent = "";
+}
+async function refreshMembersList() {
+  const body = document.getElementById("mm-body");
+  body.innerHTML = "<div style='color:var(--muted);font-size:12px'>Loading…</div>";
+  const { data, error } = await sb.from("members").select("email, role, display_name").order("created_at", { ascending: true });
+  if (error) { body.innerHTML = `<div style='color:var(--danger)'>${error.message}</div>`; return; }
+  // Refresh the global cache while we're at it — keeps the artist dropdown in sync.
+  membersCache = data || [];
+  body.innerHTML = "";
+  for (const m of data) {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    const email = document.createElement("div");
+    email.className = "member-email";
+    email.textContent = m.email;
+    row.appendChild(email);
+
+    // Editable display_name (used as the label in the artist dropdown on cards).
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "member-displayname";
+    nameInput.value = m.display_name || "";
+    nameInput.placeholder = "Display name";
+    nameInput.title = "How this person appears in the Artist dropdown on cards";
+    nameInput.addEventListener("change", async () => {
+      const newName = nameInput.value.trim() || null;
+      const { error } = await sb.from("members").update({ display_name: newName }).eq("email", m.email);
+      if (error) { showMMError(error.message); return; }
+      // Reflect in the cache so the inspector picks it up immediately.
+      const cached = membersCache.find(x => x.email === m.email);
+      if (cached) cached.display_name = newName;
+    });
+    row.appendChild(nameInput);
+
+    const sel = document.createElement("select");
+    for (const r of ["reader", "editor", "admin"]) {
+      const opt = document.createElement("option"); opt.value = r; opt.textContent = r;
+      if (m.role === r) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.disabled = (m.email === currentUser.email);
+    sel.addEventListener("change", async () => {
+      const { error } = await sb.from("members").update({ role: sel.value }).eq("email", m.email);
+      if (error) showMMError(error.message);
+    });
+    row.appendChild(sel);
+    // Reset password button (admin can reset anyone's, including own via the Password button)
+    if (m.email !== currentUser.email) {
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "remove";
+      resetBtn.style.color = "var(--warn)";
+      resetBtn.textContent = "Reset pw";
+      resetBtn.title = "Set a new password for this user";
+      resetBtn.addEventListener("click", () => resetMemberPassword(m.email));
+      row.appendChild(resetBtn);
+    }
+
+    const rmBtn = document.createElement("button");
+    rmBtn.className = "remove";
+    rmBtn.textContent = (m.email === currentUser.email) ? "(you)" : "Remove";
+    rmBtn.disabled = (m.email === currentUser.email);
+    if (m.email !== currentUser.email) {
+      rmBtn.addEventListener("click", async () => {
+        if (!confirm(`Remove ${m.email}?`)) return;
+        const { error } = await sb.from("members").delete().eq("email", m.email);
+        if (error) showMMError(error.message);
+        else await refreshMembersList();
+      });
+    }
+    row.appendChild(rmBtn);
+    body.appendChild(row);
+  }
+}
+
+async function resetMemberPassword(email) {
+  const password = prompt(`New password for ${email}:\n(min. 6 characters. They'll be able to change it themselves after logging in.)`);
+  if (password == null) return;
+  if (password.length < 6) { showMMError("Password must be at least 6 characters"); return; }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showMMError("Not authenticated"); return; }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-create-user`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type":  "application/json",
+        "apikey":        SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ action: "reset_password", email, password }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 404) {
+        showMMError("Edge function 'admin-create-user' isn't deployed yet (or hasn't been re-deployed with the latest code).");
+      } else {
+        showMMError(result.error || `Failed (status ${res.status})`);
+      }
+      return;
+    }
+    alert(`Password updated for ${email}. Communicate it via Signal/email so they can sign in.`);
+  } catch (e) {
+    showMMError("Network error: " + e.message);
+  }
+}
+async function addMember() {
+  const emailEl = document.getElementById("mm-new-email");
+  const nameEl  = document.getElementById("mm-new-displayname");
+  const passEl  = document.getElementById("mm-new-password");
+  const roleEl  = document.getElementById("mm-new-role");
+  const email = emailEl.value.trim().toLowerCase();
+  const displayName = nameEl.value.trim();
+  const password = passEl.value;
+  const role  = roleEl.value;
+  if (!email || !email.includes("@")) { showMMError("Invalid email"); return; }
+  if (!password || password.length < 6) { showMMError("Password is required (min 6 characters)"); return; }
+
+  const btn = document.getElementById("mm-add-btn");
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = "Adding…";
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { showMMError("Not authenticated"); btn.disabled = false; btn.textContent = prevLabel; return; }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-create-user`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type":  "application/json",
+        "apikey":        SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ action: "create", email, password, role }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 404) {
+        showMMError("Edge function 'admin-create-user' isn't deployed yet. See CONTEXT.md to deploy it.");
+      } else {
+        showMMError(result.error || `Failed (status ${res.status})`);
+      }
+      btn.disabled = false; btn.textContent = prevLabel;
+      return;
+    }
+  } catch (e) {
+    showMMError("Network error: " + e.message);
+    btn.disabled = false; btn.textContent = prevLabel;
+    return;
+  }
+
+  // Best-effort: set display_name now that the member row exists.
+  // We do this client-side (admin RLS allows it) rather than threading it
+  // through the Edge Function so the function stays unchanged.
+  if (displayName) {
+    const { error: nameErr } = await sb.from("members").update({ display_name: displayName }).eq("email", email);
+    if (nameErr) console.warn("Failed to set display_name on new member", nameErr);
+  }
+
+  emailEl.value = "";
+  nameEl.value  = "";
+  passEl.value  = "";
+  btn.disabled = false;
+  btn.textContent = prevLabel;
+  await refreshMembersList();
+}
+function showMMError(msg) {
+  document.getElementById("mm-error").textContent = msg;
+  setTimeout(() => { document.getElementById("mm-error").textContent = ""; }, 4000);
 }
 
 // ---------- View ----------
 function applyView() {
   const { x, y, z } = cb().view;
   world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+  world.style.setProperty("--zoom", z);
   zoomLbl.textContent = Math.round(z * 100) + "%";
 }
 function screenToWorld(sx, sy) {
@@ -840,6 +2655,7 @@ function render() {
     return 0;
   });
   for (const it of sorted) {
+    if (!matchesFilter(it)) continue;
     world.appendChild(renderItem(it));
     // Floating dots only used in overview mode; in detail mode pills live inside notes panel
     if ((it.type === "image" || it.type === "slot") && viewMode === "overview") {
@@ -881,6 +2697,175 @@ function buildPillsBar(item) {
   }
   return hasAny ? bar : null;
 }
+// ---------- Note popup ----------
+let notePopupItemId = null;
+let notePopupTarget = "note"; // "note" or "altNote" — which field to read/write
+
+// ---------- Note colors ----------
+// Shared palette for sticky notes (item.color) and card/alt notes
+// (item.noteColor / item.altNode.noteColor). Absent field = yellow (legacy).
+const NOTE_COLORS = {
+  yellow: { label: "Yellow", bg: "#fff7c2", edge: "#e0a14a" },
+  green:  { label: "Green",  bg: "#d8f5cf", edge: "#67b653" },
+  blue:   { label: "Blue",   bg: "#d5e9ff", edge: "#5a9bdc" },
+  pink:   { label: "Pink",   bg: "#ffdcea", edge: "#e0679d" },
+  orange: { label: "Orange", bg: "#ffe4c4", edge: "#e08a3c" },
+  purple: { label: "Purple", bg: "#e8ddff", edge: "#9a7fe0" },
+};
+function noteColor(id) { return NOTE_COLORS[id] || NOTE_COLORS.yellow; }
+
+// ---------- Note hover tooltip ----------
+let noteTipTimer = null;
+function showNoteTip(content, anchorEl, colorId) {
+  if (!content) return;
+  if (noteTipTimer) { clearTimeout(noteTipTimer); noteTipTimer = null; }
+  noteTipTimer = setTimeout(() => {
+    const tip = document.getElementById("note-tip");
+    tip.textContent = content;
+    const c = noteColor(colorId);
+    tip.style.background = c.bg;
+    tip.style.borderLeftColor = c.edge;
+    tip.classList.add("visible");
+    const rect = anchorEl.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    // Prefer below + left-aligned with the button; flip if no room
+    let x = rect.left;
+    let y = rect.bottom + 6;
+    if (x + tw > window.innerWidth - 8)  x = window.innerWidth - tw - 8;
+    if (y + th > window.innerHeight - 8) y = rect.top - th - 6;
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
+    tip.style.left = x + "px";
+    tip.style.top  = y + "px";
+  }, 200);
+}
+function hideNoteTip() {
+  if (noteTipTimer) { clearTimeout(noteTipTimer); noteTipTimer = null; }
+  document.getElementById("note-tip").classList.remove("visible");
+}
+function wireNoteHover(btn, getContent, getColor) {
+  btn.addEventListener("mouseenter", () => showNoteTip(getContent(), btn, getColor?.()));
+  btn.addEventListener("mouseleave", hideNoteTip);
+}
+
+function openNotePopup(item, anchorEl, target = "note") {
+  notePopupItemId = item.id;
+  notePopupTarget = target;
+  const popup = document.getElementById("note-popup");
+  const ta    = document.getElementById("np-textarea");
+  const title = target === "altNote"
+    ? (item.label ? `Alt note — ${item.label}` : "Alt note")
+    : (item.label ? `Note — ${item.label}` : "Note");
+  document.getElementById("np-title").textContent = title;
+  const value = target === "altNote" ? (item.altNode?.note || "") : (item.note || "");
+  ta.value = value;
+  ta.disabled = !canEdit();
+  buildNoteSwatches(item, target);
+  // Position popup near the clicked button
+  popup.classList.add("visible");
+  const rect = anchorEl.getBoundingClientRect();
+  // place below button by default
+  let x = rect.left;
+  let y = rect.bottom + 6;
+  // measure the popup once it's visible to clamp to viewport
+  const pw = popup.offsetWidth;
+  const ph = popup.offsetHeight;
+  if (x + pw > window.innerWidth - 8)  x = window.innerWidth - pw - 8;
+  if (y + ph > window.innerHeight - 8) y = rect.top - ph - 6;  // flip above
+  if (x < 8) x = 8;
+  if (y < 8) y = 8;
+  popup.style.left = x + "px";
+  popup.style.top  = y + "px";
+  setTimeout(() => ta.focus(), 0);
+}
+function closeNotePopup() {
+  const popup = document.getElementById("note-popup");
+  popup.classList.remove("visible");
+  notePopupItemId = null;
+}
+
+function buildNoteSwatches(item, target) {
+  const row = document.getElementById("np-colors");
+  row.innerHTML = "";
+  const current = (target === "altNote" ? item.altNode?.noteColor : item.noteColor) || "yellow";
+  for (const [id, c] of Object.entries(NOTE_COLORS)) {
+    const b = document.createElement("button");
+    b.className = "np-swatch" + (current === id ? " active" : "");
+    b.style.background = c.bg;
+    b.title = c.label;
+    b.addEventListener("click", () => {
+      if (!canEdit()) return;
+      const it = getItem(notePopupItemId);
+      if (!it) return;
+      if (notePopupTarget === "altNote") {
+        if (!it.altNode) it.altNode = { label: "", status: null, note: "", src: null, archive: [] };
+        it.altNode.noteColor = id;
+      } else {
+        it.noteColor = id;
+      }
+      buildNoteSwatches(it, notePopupTarget);
+      save();
+    });
+    row.appendChild(b);
+  }
+}
+
+document.getElementById("np-close").addEventListener("click", closeNotePopup);
+document.getElementById("np-textarea").addEventListener("input", e => {
+  const item = getItem(notePopupItemId);
+  if (!item) return;
+  if (!canEdit()) return;
+  const value = e.target.value;
+
+  if (notePopupTarget === "altNote") {
+    if (!item.altNode) item.altNode = { label: "", status: null, note: "", src: null, archive: [] };
+    item.altNode.note = value;
+    // Highlight the alt note btn in the alt modal header
+    const altBtn = document.getElementById("alt-note-btn");
+    if (altBtn) {
+      altBtn.classList.toggle("has-note", !!value);
+      altBtn.title = value ? `Note: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}` : "Add note";
+    }
+  } else {
+    item.note = value;
+    // Update the note-btn highlight on the node
+    const btn = world.querySelector(`.item[data-id="${item.id}"] .note-btn`);
+    if (btn) {
+      btn.classList.toggle("has-note", !!value);
+      btn.title = value ? `Note: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}` : "Add note";
+    }
+    // Highlight the version-modal note btn if open on this item
+    if (versionModalItemId === item.id) {
+      const vmBtn = document.getElementById("vm-note-btn");
+      if (vmBtn) {
+        vmBtn.classList.toggle("has-note", !!value);
+        vmBtn.title = value ? `Note: ${value.slice(0, 80)}${value.length > 80 ? "…" : ""}` : "Add note";
+      }
+    }
+    // If inspector is open on this item, sync textarea too
+    if (selectedId === item.id) {
+      const inspNote = document.getElementById("insp-note");
+      if (inspNote && document.activeElement !== inspNote) inspNote.value = value;
+    }
+  }
+  save();
+});
+
+// Close popup when clicking outside (but not when clicking another note-btn — that re-opens)
+document.addEventListener("mousedown", e => {
+  if (notePopupItemId == null) return;
+  const popup = document.getElementById("note-popup");
+  if (popup.contains(e.target)) return;
+  if (e.target.closest(".note-btn")) return;
+  closeNotePopup();
+});
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && notePopupItemId != null) {
+    closeNotePopup();
+    e.stopPropagation();
+  }
+});
+
 function refreshPillsBar(item) {
   if (item.type !== "image" && item.type !== "slot") return;
   const itemEl = world.querySelector(`.item[data-id="${item.id}"]`);
@@ -894,6 +2879,186 @@ function refreshPillsBar(item) {
     if (ring) itemEl.insertBefore(newBar, ring);
     else itemEl.appendChild(newBar);
   }
+}
+
+function buildAltsColumn(item) {
+  if (!item.hasAlt) return null;
+  const col = document.createElement("div");
+  col.className = "alts-column";
+  const thumb = document.createElement("div");
+  thumb.className = "alt-thumb";
+  thumb.title = item.altNode?.label ? `Alt: ${item.altNode.label}` : "Alt version (click to open)";
+  if (item.altNode?.src) {
+    const img = document.createElement("img");
+    img.src = item.altNode.src;
+    thumb.appendChild(img);
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "alt-thumb-empty";
+    empty.textContent = "★";
+    thumb.appendChild(empty);
+  }
+  const badge = document.createElement("div");
+  badge.className = "alt-thumb-badge";
+  badge.textContent = "ALT";
+  thumb.appendChild(badge);
+  thumb.addEventListener("mousedown", e => e.stopPropagation());
+  thumb.addEventListener("click", e => {
+    e.stopPropagation();
+    openAltModal(item);
+  });
+  col.appendChild(thumb);
+  return col;
+}
+
+function buildSideTools(item) {
+  // Stacked vertically in bottom-LEFT: pin, note, star (if hasAlt)
+  const wrap = document.createElement("div");
+  wrap.className = "node-side-tools";
+
+  // Pin button (always shown)
+  const pinBtn = document.createElement("div");
+  pinBtn.className = "pin-btn" + (item.pinned ? " pinned" : "");
+  pinBtn.textContent = "📌";
+  pinBtn.title = item.pinned ? "Unpin (currently locked)" : "Pin in place";
+  pinBtn.addEventListener("mousedown", e => e.stopPropagation());
+  pinBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (!canEdit()) return;
+    item.pinned = !item.pinned;
+    refreshCornerTools(item);
+    // Toggle a class on the item element for visual cursor change
+    const itemEl = world.querySelector(`.item[data-id="${item.id}"]`);
+    if (itemEl) itemEl.classList.toggle("pinned", !!item.pinned);
+    // If currently selected, hide/show the resize handle
+    if (selectedId === item.id) {
+      const handle = itemEl?.querySelector(":scope > .handle");
+      if (item.pinned && handle) handle.remove();
+      else if (!item.pinned && !handle) {
+        const h = document.createElement("div");
+        h.className = "handle";
+        h.addEventListener("mousedown", ev => startResize(ev, item));
+        itemEl.appendChild(h);
+      }
+    }
+    save();
+  });
+  wrap.appendChild(pinBtn);
+
+  // Note button (always shown)
+  const noteBtn = document.createElement("div");
+  noteBtn.className = "note-btn" + (item.note ? " has-note" : "");
+  noteBtn.textContent = "📝";
+  noteBtn.title = item.note ? "" : "Add note";   // empty title when note exists so custom tip handles it
+  noteBtn.addEventListener("mousedown", e => e.stopPropagation());
+  noteBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    hideNoteTip();
+    openNotePopup(item, noteBtn);
+  });
+  wireNoteHover(noteBtn, () => item.note, () => item.noteColor);
+  wrap.appendChild(noteBtn);
+
+  // ✨ Name-gen button — opens AI name suggestion panel
+  const genBtn = document.createElement("div");
+  genBtn.className = "namegen-btn";
+  genBtn.textContent = "✨";
+  genBtn.title = "Suggest a name (AI)";
+  genBtn.addEventListener("mousedown", e => e.stopPropagation());
+  genBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    openNameGenPanel(item, genBtn);
+  });
+  wrap.appendChild(genBtn);
+
+  return wrap;
+}
+
+function buildCornerTools(item) {
+  // Bottom-RIGHT: just the tier dropdown
+  const wrap = document.createElement("div");
+  wrap.className = "node-corner-tools";
+
+  const sel = document.createElement("select");
+  sel.className = "tier-select " + (item.tier || "");
+  for (const [val, lbl] of [["", "Tier"], ["leader", "Leader"], ["overlord", "Overlord"], ["sovereign", "Sovereign"]]) {
+    const opt = document.createElement("option");
+    opt.value = val; opt.textContent = lbl;
+    if ((item.tier || "") === val) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("mousedown", e => e.stopPropagation());
+  sel.addEventListener("click",     e => e.stopPropagation());
+  sel.addEventListener("change", e => {
+    item.tier = e.target.value || null;
+    sel.className = "tier-select " + (item.tier || "");
+    save();
+    if (currentFilter !== "sovereign") render();
+  });
+  wrap.appendChild(sel);
+
+  return wrap;
+}
+
+function refreshCornerTools(item) {
+  if (item.type !== "image" && item.type !== "slot") return;
+  const itemEl = world.querySelector(`.item[data-id="${item.id}"]`);
+  if (!itemEl) return;
+  const mainEl = itemEl.querySelector(".image-main");
+  if (!mainEl) return;
+  // Refresh both side-tools (pin/note/star) and corner-tools (tier)
+  const sideExisting   = mainEl.querySelector(":scope > .node-side-tools");
+  const cornerExisting = mainEl.querySelector(":scope > .node-corner-tools");
+  if (sideExisting)   sideExisting.remove();
+  if (cornerExisting) cornerExisting.remove();
+  mainEl.appendChild(buildSideTools(item));
+  mainEl.appendChild(buildCornerTools(item));
+  // Also refresh the alt-peek if hasAlt changed
+  const peekExisting = itemEl.querySelector(":scope > .alt-peek");
+  if (peekExisting) peekExisting.remove();
+  if (item.hasAlt && item.type === "image") {
+    itemEl.appendChild(buildAltPeek(item));
+    itemEl.classList.add("has-alt");
+  } else {
+    itemEl.classList.remove("has-alt");
+  }
+}
+
+function buildAltPeek(item) {
+  const peek = document.createElement("div");
+  peek.className = "alt-peek";
+  peek.title = item.altNode?.label ? `Alt: ${item.altNode.label}` : "Click to open alt version";
+
+  // Image area
+  const imgWrap = document.createElement("div");
+  imgWrap.className = "alt-peek-img-wrap";
+  if (item.altNode?.src) {
+    const img = document.createElement("img");
+    img.src = item.altNode.src;
+    imgWrap.appendChild(img);
+  }
+  peek.appendChild(imgWrap);
+
+  // Label
+  if (item.altNode?.label) {
+    const lbl = document.createElement("div");
+    lbl.className = "alt-peek-label";
+    lbl.textContent = item.altNode.label;
+    peek.appendChild(lbl);
+  }
+
+  // ALT badge
+  const badge = document.createElement("div");
+  badge.className = "alt-peek-badge";
+  badge.textContent = "ALT";
+  peek.appendChild(badge);
+
+  peek.addEventListener("mousedown", e => e.stopPropagation());
+  peek.addEventListener("click", e => {
+    e.stopPropagation();
+    openAltModal(item);
+  });
+  return peek;
 }
 
 function renderInfoPills(item) {
@@ -944,13 +3109,20 @@ function renderInfoPills(item) {
 function renderItem(it) {
   const el = document.createElement("div");
   el.className = `item ${it.type}`;
-  if (it.id === selectedId) el.classList.add("selected");
+  if (selectedIds.has(it.id) || it.id === selectedId) el.classList.add("selected");
+  if (it.pinned) el.classList.add("pinned");
+  // Hidden flag: editors/admins still see the content (with a "hidden" badge);
+  // readers see a "Coming soon" placeholder via CSS.
+  if (it.hidden) {
+    el.classList.add(canEdit() ? "hidden-flag" : "hidden-from-readers");
+  }
   el.dataset.id = it.id;
   if (it.status) el.dataset.status = it.status;
   Object.assign(el.style, {
     left: it.x + "px", top: it.y + "px",
     width: it.w + "px", height: it.h + "px",
   });
+  el.style.setProperty("--node-w", it.w);  // for UI counter-scale fit cap
 
   if (it.type === "image") {
     const row = document.createElement("div");
@@ -960,14 +3132,20 @@ function renderItem(it) {
     const img = document.createElement("img");
     img.src = it.src;
     main.appendChild(img);
+    main.appendChild(buildSideTools(it));    // bottom-left: pin/note/star (vertical)
+    main.appendChild(buildCornerTools(it));  // bottom-right: tier dropdown
     row.appendChild(main);
-    row.appendChild(buildNotesPanel(it));
     el.appendChild(row);
     const bar = buildPillsBar(it);
     if (bar) el.appendChild(bar);
     const ring = document.createElement("div");
     ring.className = "status-ring";
     el.appendChild(ring);
+    // Stacked-card peek (visible behind the node) when there's an alt
+    if (it.hasAlt) {
+      el.classList.add("has-alt");
+      el.appendChild(buildAltPeek(it));
+    }
     if (it.label) {
       const lbl = document.createElement("div");
       lbl.className = "label";
@@ -976,6 +3154,7 @@ function renderItem(it) {
     }
   } else if (it.type === "note") {
     el.textContent = it.text || "";
+    el.style.background = noteColor(it.color).bg;
   } else if (it.type === "group") {
     const lbl = document.createElement("div");
     lbl.className = "group-label";
@@ -985,6 +3164,34 @@ function renderItem(it) {
     wm.className = "group-watermark";
     wm.textContent = it.label || "Tier";
     el.appendChild(wm);
+    // Pin button to the right of the label (also floating above the frame).
+    // We compute left dynamically since the label width varies; use JS after attach.
+    const pin = document.createElement("div");
+    pin.className = "group-pin" + (it.pinned ? " pinned" : "");
+    pin.textContent = "📌";
+    pin.title = it.pinned ? "Unpin tier" : "Pin tier in place";
+    pin.addEventListener("mousedown", e => e.stopPropagation());
+    pin.addEventListener("click", e => {
+      e.stopPropagation();
+      if (!canEdit()) return;
+      it.pinned = !it.pinned;
+      render(); save();
+    });
+    el.appendChild(pin);
+    // Position pin just after the label — set after browser computes label width
+    setTimeout(() => {
+      const lblRect = lbl.getBoundingClientRect();
+      const z = cb().view.z;
+      pin.style.left = (lblRect.width / z + 8) + "px";
+    }, 0);
+    // Invisible clickable edges so clicking the dashed border selects/drags
+    // the tier frame (interior is still pointer-events: none → items inside
+    // remain selectable).
+    for (const side of ["top","right","bottom","left"]) {
+      const edge = document.createElement("div");
+      edge.className = "group-edge " + side;
+      el.appendChild(edge);
+    }
   } else if (it.type === "slot") {
     const row = document.createElement("div");
     row.className = "content-row";
@@ -997,8 +3204,9 @@ function renderItem(it) {
     txt.textContent = "Drop or Ctrl+V";
     main.appendChild(icon);
     main.appendChild(txt);
+    main.appendChild(buildSideTools(it));    // bottom-left: pin/note/star
+    main.appendChild(buildCornerTools(it));  // bottom-right: tier dropdown
     row.appendChild(main);
-    row.appendChild(buildNotesPanel(it));
     el.appendChild(row);
     const bar = buildPillsBar(it);
     if (bar) el.appendChild(bar);
@@ -1013,7 +3221,8 @@ function renderItem(it) {
     }
   }
 
-  if (it.id === selectedId) {
+  // Resize handle only when this is the SOLE selected item and not pinned.
+  if (selectedIds.size === 1 && selectedIds.has(it.id) && !it.pinned) {
     const h = document.createElement("div");
     h.className = "handle";
     h.addEventListener("mousedown", e => startResize(e, it));
@@ -1037,6 +3246,18 @@ function addItem(item) {
 function deleteItem(id) {
   cb().items = cb().items.filter(i => i.id !== id);
   if (selectedId === id) selectedId = null;
+  selectedIds.delete(id);
+  render(); save();
+}
+function deleteSelected() {
+  if (selectedIds.size === 0 && selectedId == null) return;
+  const ids = selectedIds.size ? [...selectedIds] : [selectedId];
+  if (ids.length > 1) {
+    if (!confirm(`Delete ${ids.length} items?`)) return;
+  }
+  cb().items = cb().items.filter(i => !ids.includes(i.id));
+  selectedIds.clear();
+  selectedId = null;
   render(); save();
 }
 function getItem(id) { return cb().items.find(i => i.id === id); }
@@ -1077,32 +3298,90 @@ function addSlot(sx, sy) {
 }
 
 // ---------- Selection / Inspector ----------
-function select(id) {
-  // Remove handle + selected class from previous
-  if (selectedId != null) {
-    const prevEl = world.querySelector(`.item[data-id="${selectedId}"]`);
-    if (prevEl) {
-      prevEl.classList.remove("selected");
-      const handle = prevEl.querySelector(":scope > .handle");
-      if (handle) handle.remove();
-    }
+function paintSelection(id, on) {
+  const el = world.querySelector(`.item[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.toggle("selected", on);
+  const handle = el.querySelector(":scope > .handle");
+  if (handle) handle.remove();
+}
+function addResizeHandle(id) {
+  // Resize handle only when EXACTLY one item is selected (multi-resize is too
+  // ambiguous — the user can resize one at a time).
+  const el = world.querySelector(`.item[data-id="${id}"]`);
+  const it = getItem(id);
+  if (!el || !it) return;
+  if (it.pinned) return; // pinned items can't be resized
+  const h = document.createElement("div");
+  h.className = "handle";
+  h.addEventListener("mousedown", e => startResize(e, it));
+  el.appendChild(h);
+}
+function clearSelection() {
+  for (const sid of selectedIds) paintSelection(sid, false);
+  selectedIds.clear();
+  selectedId = null;
+}
+// select(id) — clear all and select just id (null = deselect all)
+// select(id, { add:true })    — add id to current selection
+// select(id, { toggle:true }) — toggle membership
+function select(id, opts) {
+  opts = opts || {};
+  if (id == null) {
+    clearSelection();
+    updateInspector();
+    return;
   }
-  selectedId = id;
-  if (id != null) {
-    const el = world.querySelector(`.item[data-id="${id}"]`);
-    const it = getItem(id);
-    if (el && it) {
-      el.classList.add("selected");
-      const h = document.createElement("div");
-      h.className = "handle";
-      h.addEventListener("mousedown", e => startResize(e, it));
-      el.appendChild(h);
+  if (opts.toggle && selectedIds.has(id)) {
+    selectedIds.delete(id);
+    paintSelection(id, false);
+    if (selectedId === id) selectedId = selectedIds.size ? [...selectedIds][selectedIds.size - 1] : null;
+  } else {
+    if (!opts.add && !opts.toggle) {
+      // Replace: clear others
+      for (const sid of selectedIds) if (sid !== id) paintSelection(sid, false);
+      selectedIds.clear();
     }
+    selectedIds.add(id);
+    selectedId = id;
+    paintSelection(id, true);
   }
+  // Resize handle: only when exactly one is selected. Repaint to be safe.
+  for (const sid of selectedIds) {
+    const el = world.querySelector(`.item[data-id="${sid}"]`);
+    const h = el && el.querySelector(":scope > .handle");
+    if (h) h.remove();
+  }
+  if (selectedIds.size === 1) addResizeHandle([...selectedIds][0]);
   updateInspector();
 }
 function updateInspector() {
-  const it = selectedId != null ? getItem(selectedId) : null;
+  const multi = selectedIds.size > 1;
+  const it = (!multi && selectedId != null) ? getItem(selectedId) : null;
+  // Multi-selection: show only a compact summary + Delete-all button
+  let summary = document.getElementById("insp-multi-summary");
+  if (multi) {
+    inspector.classList.add("visible");
+    if (!summary) {
+      summary = document.createElement("div");
+      summary.id = "insp-multi-summary";
+      summary.style.cssText = "padding:12px;background:var(--bg);border-radius:6px;font-size:12px;color:var(--text);margin-bottom:12px";
+      inspector.insertBefore(summary, inspector.firstChild);
+    }
+    summary.textContent = `${selectedIds.size} items selected`;
+    summary.style.display = "";
+    // Hide single-item fields while multi
+    document.querySelector("#inspector h3").style.display = "none";
+    document.querySelectorAll("#inspector > label").forEach(l => l.style.display = "none");
+    document.getElementById("insp-image-fields").style.display = "none";
+    document.getElementById("insp-delete").textContent = `Delete ${selectedIds.size} items`;
+    return;
+  }
+  // Single / none — restore default look
+  if (summary) summary.style.display = "none";
+  document.querySelector("#inspector h3").style.display = "";
+  document.querySelectorAll("#inspector > label").forEach(l => l.style.display = "");
+  document.getElementById("insp-delete").textContent = "Delete (Del)";
   if (!it) {
     inspector.classList.remove("visible");
     return;
@@ -1120,12 +3399,39 @@ function updateInspector() {
     document.querySelectorAll(".status-chip").forEach(c => {
       c.classList.toggle("active", c.dataset.st === it.status);
     });
-    document.getElementById("insp-artist").value = it.artist || "";
+    // Artist dropdown — re-populate from membersCache every time so newly added members appear.
+    const artistSel = document.getElementById("insp-artist");
+    artistSel.innerHTML = '<option value="">(none)</option>';
+    for (const m of membersCache) {
+      const opt = document.createElement("option");
+      opt.value = m.email;
+      opt.textContent = m.display_name || m.email.split("@")[0];
+      artistSel.appendChild(opt);
+    }
+    // If item has an artist_email matching a known member, select it.
+    // Otherwise leave as "(none)" but show a small hint if there's a legacy free-text value.
+    const legacyHint = document.getElementById("insp-artist-legacy");
+    if (it.artist_email && membersCache.some(m => m.email === it.artist_email)) {
+      artistSel.value = it.artist_email;
+      legacyHint.style.display = "none";
+    } else {
+      artistSel.value = "";
+      if (it.artist) {
+        legacyHint.textContent = `Legacy artist: "${it.artist}" — pick a member to re-assign.`;
+        legacyHint.style.display = "block";
+      } else {
+        legacyHint.style.display = "none";
+      }
+    }
+    document.getElementById("insp-character-type").value = it.characterType || "";
     document.getElementById("insp-base").value   = it.baseSize || "";
     document.getElementById("insp-due").value    = it.dueDate || "";
     document.getElementById("insp-brief").value  = it.briefLink || "";
     document.getElementById("insp-thread").value = it.threadLink || "";
     document.getElementById("insp-note").value   = it.note || "";
+    document.getElementById("insp-tier").value   = it.tier || "";
+    document.getElementById("insp-has-alt").checked = !!it.hasAlt;
+    document.getElementById("insp-hidden").checked  = !!it.hidden;
   }
 }
 inspLabel.addEventListener("input", () => {
@@ -1157,11 +3463,17 @@ function wireField(id, prop, opts = {}) {
     it[prop] = e.target.value;
     refreshItemPills(it);  // overview-mode floating dots
     refreshPillsBar(it);   // detail-mode pills bar at bottom of node
-    if (opts.refreshDom) {
-      // Update note-text in the integrated panel (preserve inspector focus)
-      const el = world.querySelector(`.item[data-id="${it.id}"] .note-text`);
-      if (el && el.getAttribute("contenteditable") !== "true") {
-        el.textContent = it[prop] || "";
+    if (opts.refreshDom && prop === "note") {
+      // Sync the note-btn highlight on the node
+      const btn = world.querySelector(`.item[data-id="${it.id}"] .note-btn`);
+      if (btn) {
+        btn.classList.toggle("has-note", !!it.note);
+        btn.title = it.note ? `Note: ${it.note.slice(0, 80)}${it.note.length > 80 ? "…" : ""}` : "Add note";
+      }
+      // Sync popup textarea if it's open on this item
+      if (notePopupItemId === it.id) {
+        const ta = document.getElementById("np-textarea");
+        if (ta && document.activeElement !== ta) ta.value = it.note || "";
       }
     }
     save();
@@ -1174,14 +3486,67 @@ function refreshItemPills(item) {
     for (const pill of renderInfoPills(item)) world.appendChild(pill);
   }
 }
-wireField("insp-artist", "artist");
+// Artist is a select sourced from members, not a free-text field.
+// We store BOTH artist_email (canonical, used by the back-office for billing match)
+// AND artist (the displayed name, used by existing pills/overview dots/tip-meta).
+document.getElementById("insp-artist").addEventListener("change", e => {
+  const it = getItem(selectedId);
+  if (!it) return;
+  const email = e.target.value || "";
+  if (email) {
+    it.artist_email = email;
+    it.artist = memberDisplayName(email);
+  } else {
+    it.artist_email = null;
+    it.artist = ""; // also clears the legacy free-text value
+  }
+  // Hide the legacy hint once the user has made a choice.
+  document.getElementById("insp-artist-legacy").style.display = "none";
+  refreshItemPills(it);
+  refreshPillsBar(it);
+  save();
+});
+// character_type is needed by the back-office pricing engine.
+document.getElementById("insp-character-type").addEventListener("change", e => {
+  const it = getItem(selectedId);
+  if (!it) return;
+  it.characterType = e.target.value || null;
+  save();
+});
 wireField("insp-base",   "baseSize");
 wireField("insp-due",    "dueDate");
 wireField("insp-brief",  "briefLink");
 wireField("insp-thread", "threadLink");
 wireField("insp-note",   "note", { refreshDom: true });
+
+// Tier (dropdown in inspector)
+document.getElementById("insp-tier").addEventListener("change", e => {
+  const it = getItem(selectedId);
+  if (!it) return;
+  it.tier = e.target.value || null;
+  refreshCornerTools(it);
+  save();
+  if (currentFilter !== "sovereign") render();
+});
+// Has alt version (checkbox)
+document.getElementById("insp-has-alt").addEventListener("change", e => {
+  const it = getItem(selectedId);
+  if (!it) return;
+  it.hasAlt = e.target.checked;
+  if (it.hasAlt && !it.altNode) it.altNode = { label: "", status: null, note: "", src: null, archive: [] };
+  refreshCornerTools(it);
+  save();
+});
+// Hidden-from-readers toggle (editor/admin only — the inspector is hidden for readers anyway)
+document.getElementById("insp-hidden").addEventListener("change", e => {
+  const it = getItem(selectedId);
+  if (!it) return;
+  it.hidden = e.target.checked;
+  refreshItemDom(it);
+  save();
+});
 document.getElementById("insp-delete").addEventListener("click", () => {
-  if (selectedId != null) deleteItem(selectedId);
+  deleteSelected();
 });
 
 // ---------- Drag / Resize / Pan ----------
@@ -1235,42 +3600,59 @@ function onPillDragEnd() {
 
 function startDrag(e, it, el) {
   if (e.button !== 0) return;
+  if (it.pinned) { e.stopPropagation(); select(it.id); return; }  // pinned items don't move
   if (el.classList.contains("note") && el.getAttribute("contenteditable") === "true") return;
   // Don't start drag while editing the note text inline
   if (e.target.closest(".note-text[contenteditable='true']")) return;
   // Pills in notes panel have their own mousedown handler; their links should work
   if (e.target.closest(".notes-pill a")) return;
-  // Group: only label initiates drag
-  if (it.type === "group" && !e.target.classList.contains("group-label")) return;
+  // Group: only label OR the new border edges initiate drag
+  if (it.type === "group") {
+    const t = e.target;
+    const isLabel  = t.classList.contains("group-label");
+    const isEdge   = t.classList && t.classList.contains("group-edge");
+    if (!isLabel && !isEdge) return;
+  }
   e.stopPropagation();
   cancelHoverTip();
-  select(it.id);
+  // If item isn't already selected, replace selection. If it IS selected
+  // (part of a multi-selection), keep the selection so we can drag the group.
+  // Shift adds to selection without dragging — but mousedown with shift
+  // shouldn't start a drag, so we treat shift as "add and don't drag".
+  if (e.shiftKey) {
+    select(it.id, { toggle: true });
+    return;
+  }
+  if (!selectedIds.has(it.id)) select(it.id);
+  // Snapshot starting positions of ALL selected items
   drag = {
-    itemId: it.id,
+    items: [...selectedIds].map(id => {
+      const item = getItem(id);
+      return item ? { id, ox: item.x, oy: item.y } : null;
+    }).filter(Boolean),
     sx: e.clientX, sy: e.clientY,
-    ox: it.x, oy: it.y,
   };
   document.addEventListener("mousemove", onDragMove);
   document.addEventListener("mouseup",   onDragEnd);
 }
 function onDragMove(e) {
   if (!drag) return;
-  const it = getItem(drag.itemId);
-  if (!it) return;
   const dx = (e.clientX - drag.sx) / cb().view.z;
   const dy = (e.clientY - drag.sy) / cb().view.z;
-  it.x = drag.ox + dx;
-  it.y = drag.oy + dy;
-  // update DOM directly for perf
-  const el = world.querySelector(`.item[data-id="${it.id}"]`);
-  if (el) { el.style.left = it.x + "px"; el.style.top = it.y + "px"; }
-  // move attached pills with the parent
-  if (it.type === "image" || it.type === "slot") {
-    world.querySelectorAll(`.info-pill[data-parent="${it.id}"]`).forEach(p => {
-      const pos = getPillPosition(it, p.dataset.kind, viewMode);
-      p.style.left = (it.x + pos.dx) + "px";
-      p.style.top  = (it.y + pos.dy) + "px";
-    });
+  for (const ref of drag.items) {
+    const it = getItem(ref.id);
+    if (!it) continue;
+    it.x = ref.ox + dx;
+    it.y = ref.oy + dy;
+    const el = world.querySelector(`.item[data-id="${it.id}"]`);
+    if (el) { el.style.left = it.x + "px"; el.style.top = it.y + "px"; }
+    if (it.type === "image" || it.type === "slot") {
+      world.querySelectorAll(`.info-pill[data-parent="${it.id}"]`).forEach(p => {
+        const pos = getPillPosition(it, p.dataset.kind, viewMode);
+        p.style.left = (it.x + pos.dx) + "px";
+        p.style.top  = (it.y + pos.dy) + "px";
+      });
+    }
   }
 }
 function onDragEnd() {
@@ -1282,6 +3664,7 @@ function onDragEnd() {
 
 function startResize(e, it) {
   e.stopPropagation();
+  if (it.pinned) return;
   cancelHoverTip();
   resize = {
     itemId: it.id,
@@ -1307,7 +3690,10 @@ function onResizeMove(e) {
   }
   it.w = nw; it.h = nh;
   const el = world.querySelector(`.item[data-id="${it.id}"]`);
-  if (el) { el.style.width = nw + "px"; el.style.height = nh + "px"; }
+  if (el) {
+    el.style.width = nw + "px"; el.style.height = nh + "px";
+    el.style.setProperty("--node-w", nw);
+  }
 }
 function onResizeEnd() {
   if (resize) { save(); render(); } // re-render so default pill positions reflow
@@ -1316,28 +3702,203 @@ function onResizeEnd() {
   document.removeEventListener("mouseup",   onResizeEnd);
 }
 
-// Pan
-viewport.addEventListener("mousedown", e => {
-  const onBg = e.target === viewport || e.target === world;
-  const wantsPan = e.button === 1 || (e.button === 0 && (spaceDown || onBg));
-  if (!wantsPan) return;
-  if (e.button === 0 && onBg && !spaceDown) {
-    select(null);
-  }
-  pan = { sx: e.clientX, sy: e.clientY, ox: cb().view.x, oy: cb().view.y };
-  viewport.classList.add("panning");
-  cancelHoverTip();
+// Pan / Marquee
+// - Middle-click drag OR Space+drag → pan
+// - Left-click drag on empty canvas → marquee selection (rectangle)
+// - Left-click drag with Shift on empty canvas → marquee that ADDS to current selection
+let marquee = null;
+// ---------- Zoom-to-area (Ctrl/Cmd + drag) ----------
+let zoomBox = null; // { startX, startY, el }
+
+// Track ctrl/cmd state to set a cursor hint
+window.addEventListener("keydown", e => {
+  if (e.key === "Control" || e.key === "Meta") document.body.classList.add("zoom-mode");
+});
+window.addEventListener("keyup", e => {
+  if (e.key === "Control" || e.key === "Meta") document.body.classList.remove("zoom-mode");
+});
+window.addEventListener("blur", () => document.body.classList.remove("zoom-mode"));
+
+// Capture-phase listener so we preempt item/group drag handlers
+document.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
+  // Don't trigger on UI controls (toolbar, inspector, modals, etc.)
+  if (e.target.closest("#toolbar, #inspector, #topbar, #ctx-menu, #members-modal, #version-modal, #alt-modal, #note-popup, #password-modal, #auth-screen, #sync-indicator")) return;
   e.preventDefault();
+  e.stopPropagation();
+  const box = document.createElement("div");
+  box.className = "zoom-box";
+  box.style.left = e.clientX + "px";
+  box.style.top  = e.clientY + "px";
+  box.style.width = "0px";
+  box.style.height = "0px";
+  document.body.appendChild(box);
+  zoomBox = { startX: e.clientX, startY: e.clientY, el: box };
+}, true);
+
+document.addEventListener("mousemove", e => {
+  if (!zoomBox) return;
+  const x = Math.min(zoomBox.startX, e.clientX);
+  const y = Math.min(zoomBox.startY, e.clientY);
+  const w = Math.abs(e.clientX - zoomBox.startX);
+  const h = Math.abs(e.clientY - zoomBox.startY);
+  zoomBox.el.style.left   = x + "px";
+  zoomBox.el.style.top    = y + "px";
+  zoomBox.el.style.width  = w + "px";
+  zoomBox.el.style.height = h + "px";
+});
+
+document.addEventListener("mouseup", e => {
+  if (!zoomBox) return;
+  const x = Math.min(zoomBox.startX, e.clientX);
+  const y = Math.min(zoomBox.startY, e.clientY);
+  const w = Math.abs(e.clientX - zoomBox.startX);
+  const h = Math.abs(e.clientY - zoomBox.startY);
+  zoomBox.el.remove();
+  zoomBox = null;
+
+  // Ignore tiny boxes (likely accidental ctrl+click)
+  if (w < 20 || h < 20) return;
+
+  // Convert screen rect to world coords using existing helper
+  const w1 = screenToWorld(x, y);
+  const w2 = screenToWorld(x + w, y + h);
+  const worldW = w2.x - w1.x;
+  const worldH = w2.y - w1.y;
+
+  // Viewport visible area (below topbar)
+  const vpRect = viewport.getBoundingClientRect();
+  const vpW = vpRect.width;
+  const vpH = vpRect.height;
+
+  // Fit the rect into the viewport with a bit of padding
+  const padding = 40;
+  const newZ = Math.min(
+    (vpW - padding * 2) / worldW,
+    (vpH - padding * 2) / worldH,
+    8
+  );
+  const z = Math.max(0.05, newZ);
+
+  // Center the rect in the viewport at new zoom.
+  // The viewport's screen origin is (vpRect.left, vpRect.top), so place
+  // the rect's center at (vpRect.left + vpW/2, vpRect.top + vpH/2).
+  const view = cb().view;
+  view.z = z;
+  view.x = vpRect.left + vpW / 2 - (w1.x + worldW / 2) * z;
+  view.y = vpRect.top  + vpH / 2 - (w1.y + worldH / 2) * z;
+  applyView();
+  save();
+}, true);
+
+viewport.addEventListener("mousedown", e => {
+  // If we're already starting a zoom-box, don't trigger pan/drag
+  if (zoomBox) return;
+  const onBg = e.target === viewport || e.target === world;
+  // Pan: middle-click anywhere, or space+left-drag anywhere
+  if (e.button === 1 || (e.button === 0 && spaceDown)) {
+    pan = { sx: e.clientX, sy: e.clientY, ox: cb().view.x, oy: cb().view.y };
+    viewport.classList.add("panning");
+    cancelHoverTip();
+    e.preventDefault();
+    return;
+  }
+  // Marquee: left-click on empty bg
+  if (e.button === 0 && onBg) {
+    marquee = {
+      sx: e.clientX, sy: e.clientY,
+      shift: e.shiftKey,
+      started: false,
+      el: null,
+    };
+    cancelHoverTip();
+    e.preventDefault();
+  }
 });
 document.addEventListener("mousemove", e => {
-  if (!pan) return;
-  cb().view.x = pan.ox + (e.clientX - pan.sx);
-  cb().view.y = pan.oy + (e.clientY - pan.sy);
-  applyView();
+  if (pan) {
+    cb().view.x = pan.ox + (e.clientX - pan.sx);
+    cb().view.y = pan.oy + (e.clientY - pan.sy);
+    applyView();
+    return;
+  }
+  if (marquee) {
+    const dx = e.clientX - marquee.sx;
+    const dy = e.clientY - marquee.sy;
+    if (!marquee.started) {
+      if (Math.hypot(dx, dy) < 4) return; // ignore micro-movements (real click)
+      marquee.started = true;
+      // Only clear current selection on drag-start (not on simple click) and not with shift
+      if (!marquee.shift) clearSelection();
+      marquee.el = document.createElement("div");
+      marquee.el.id = "marquee";
+      document.body.appendChild(marquee.el);
+    }
+    const left = Math.min(e.clientX, marquee.sx);
+    const top  = Math.min(e.clientY, marquee.sy);
+    marquee.el.style.left = left + "px";
+    marquee.el.style.top  = top  + "px";
+    marquee.el.style.width  = Math.abs(dx) + "px";
+    marquee.el.style.height = Math.abs(dy) + "px";
+    // Live highlight items inside the rectangle
+    const rect = { left, top, right: left + Math.abs(dx), bottom: top + Math.abs(dy) };
+    updateMarqueeSelection(rect, marquee.shift);
+  }
 });
-document.addEventListener("mouseup", () => {
+document.addEventListener("mouseup", e => {
   if (pan) { save(); pan = null; viewport.classList.remove("panning"); }
+  if (marquee) {
+    if (marquee.started && marquee.el) {
+      marquee.el.remove();
+      // If exactly one item ended up selected, restore its resize handle.
+      if (selectedIds.size === 1) addResizeHandle([...selectedIds][0]);
+      updateInspector();
+    } else if (!marquee.shift) {
+      // Simple click on empty bg without drag → deselect
+      select(null);
+    }
+    marquee = null;
+    marqueeBaseSelection = null;
+  }
 });
+
+// Update selection in real-time during marquee drag.
+// `baseSelection` (when shift) preserves the pre-marquee selection so we ADD to it.
+let marqueeBaseSelection = null;
+function updateMarqueeSelection(rect, additive) {
+  if (additive && marqueeBaseSelection == null) {
+    marqueeBaseSelection = new Set(selectedIds);
+  } else if (!additive) {
+    marqueeBaseSelection = null;
+  }
+  const baseline = marqueeBaseSelection || new Set();
+  // Recompute selection from baseline + items inside rect
+  const newSel = new Set(baseline);
+  const z = cb().view.z;
+  const vRect = viewport.getBoundingClientRect();
+  for (const it of cb().items) {
+    if (!matchesFilter(it)) continue;
+    // Item's screen rect (accounts for the current viewport position)
+    const itL = vRect.left + cb().view.x + it.x * z;
+    const itT = vRect.top  + cb().view.y + it.y * z;
+    const itR = itL + it.w * z;
+    const itB = itT + it.h * z;
+    const hits = itR >= rect.left && itL <= rect.right && itB >= rect.top && itT <= rect.bottom;
+    if (hits) newSel.add(it.id);
+  }
+  // Apply diff (don't rebuild DOM, just toggle classes)
+  for (const id of selectedIds) if (!newSel.has(id)) paintSelection(id, false);
+  for (const id of newSel)      if (!selectedIds.has(id)) paintSelection(id, true);
+  selectedIds = newSel;
+  if (selectedIds.size > 0) {
+    selectedId = [...selectedIds][selectedIds.size - 1];
+  } else {
+    selectedId = null;
+  }
+  // Remove handle while marquee-dragging (resize handle clutter)
+  world.querySelectorAll(".item > .handle").forEach(h => h.remove());
+}
 
 // Zoom
 viewport.addEventListener("wheel", e => {
@@ -1460,14 +4021,148 @@ window.addEventListener("dragover", e => {
   if (target) target.classList.add("drag-over");
 });
 
+// fileToImage decodes a File into a usable image src + dimensions.
+// If Supabase Storage is available and the user can edit, the data URL is
+// uploaded to the `board-images` bucket and the public URL is returned
+// instead. This keeps boards_data tiny (URLs only, no base64 blobs).
+// On any failure we fall back to the data URL so the user never loses an image.
 function fileToImage(file, cb) {
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
-    img.onload = () => cb(reader.result, img.naturalWidth, img.naturalHeight);
+    img.onload = async () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      let src = reader.result;
+      try {
+        if (USE_SUPABASE && sb && currentUser && canEdit()) {
+          src = await uploadImageToStorage(reader.result);
+        }
+      } catch (e) {
+        console.warn("Upload to Storage failed, keeping data URL:", e);
+      }
+      cb(src, w, h);
+    };
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
+}
+
+// Upload a data URL to the board-images bucket and return its public URL.
+// Path is derived from the SHA-256 of the content, so the same image is never
+// stored twice (idempotent across users + re-runs).
+async function uploadImageToStorage(dataUrl) {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) throw new Error("Not a base64 data URL");
+  const mime  = match[1];
+  let   ext   = (mime.split("/")[1] || "bin").split("+")[0].toLowerCase();
+  if (ext === "jpeg") ext = "jpg";
+  const b64   = match[2];
+  // base64 → bytes
+  const binary = atob(b64);
+  const bytes  = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  // Content-addressed path
+  const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
+  const hashHex = Array.from(new Uint8Array(hashBuf))
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+  const path = `${hashHex.slice(0, 32)}.${ext}`;
+  // Upload. If the object already exists (same hash), treat as success.
+  const { error } = await sb.storage.from("board-images")
+    .upload(path, bytes, { contentType: mime, upsert: false });
+  if (error && !/already exists|duplicate|409/i.test(error.message)) throw error;
+  // Public URL
+  const { data } = sb.storage.from("board-images").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// One-shot migration: walks the current state, uploads every data: URL it
+// finds, and replaces it with the public Storage URL. Runs once after
+// cloudLoad on boot. Safe to interrupt: each upload is content-addressed so
+// re-running picks up where we left off without duplicating storage.
+let migrationRunning = false;
+async function migrateImagesToStorage() {
+  if (migrationRunning) return;
+  if (!USE_SUPABASE || !sb || !currentUser || !canEdit()) return;
+  // Collect all replacement tasks.
+  const tasks = [];
+  for (const board of state.boards || []) {
+    for (const item of board.items || []) {
+      if (typeof item.src === "string" && item.src.startsWith("data:")) {
+        tasks.push({ set: v => item.src = v, src: item.src });
+      }
+      if (Array.isArray(item.archive)) {
+        for (const a of item.archive) {
+          if (typeof a.src === "string" && a.src.startsWith("data:")) {
+            tasks.push({ set: v => a.src = v, src: a.src });
+          }
+        }
+      }
+      if (item.altNode && typeof item.altNode.src === "string" && item.altNode.src.startsWith("data:")) {
+        tasks.push({ set: v => item.altNode.src = v, src: item.altNode.src });
+      }
+      if (item.altNode && Array.isArray(item.altNode.archive)) {
+        for (const a of item.altNode.archive) {
+          if (typeof a.src === "string" && a.src.startsWith("data:")) {
+            tasks.push({ set: v => a.src = v, src: a.src });
+          }
+        }
+      }
+    }
+  }
+  if (tasks.length === 0) return;
+
+  migrationRunning = true;
+  showMigrationBanner(tasks.length, 0);
+  let done = 0, failed = 0;
+  for (const t of tasks) {
+    try {
+      const url = await uploadImageToStorage(t.src);
+      t.set(url);
+    } catch (e) {
+      console.warn("Migration upload failed:", e);
+      failed++;
+    }
+    done++;
+    showMigrationBanner(tasks.length, done, failed);
+  }
+  hideMigrationBanner();
+  migrationRunning = false;
+
+  // Save once at the end — payload is now tiny (URLs only, no base64).
+  if (done > failed) {
+    try { await cloudSave(); } catch (e) { console.warn("Post-migration save failed:", e); }
+  }
+}
+
+// Self-healing: whenever remote state lands with base64 images still inside
+// (an old client saved them, or a sync conflict rolled back a migration),
+// re-run the migration once things settle. Content-addressed uploads make
+// re-runs cheap — already-uploaded images are skipped server-side.
+let migrationRetryTimer = null;
+function scheduleMigrationIfNeeded() {
+  if (!USE_SUPABASE || !sb || !currentUser || !canEdit()) return;
+  const isData = s => typeof s === "string" && s.startsWith("data:");
+  const hasDataUrls = (state.boards || []).some(b => (b.items || []).some(it =>
+    isData(it.src) ||
+    (it.archive || []).some(a => isData(a.src)) ||
+    (it.altNode && (isData(it.altNode.src) ||
+      (it.altNode.archive || []).some(a => isData(a.src))))));
+  if (!hasDataUrls) return;
+  clearTimeout(migrationRetryTimer);
+  migrationRetryTimer = setTimeout(migrateImagesToStorage, 3000);
+}
+
+function showMigrationBanner(total, done, failed = 0) {
+  const el  = document.getElementById("migration-banner");
+  const bar = document.getElementById("mb-progress");
+  const cnt = document.getElementById("mb-count");
+  el.classList.add("visible");
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  bar.style.width = pct + "%";
+  cnt.textContent = failed ? `${done} / ${total}  (${failed} failed)` : `${done} / ${total}`;
+}
+function hideMigrationBanner() {
+  document.getElementById("migration-banner").classList.remove("visible");
 }
 function fitSize(w, h, max) {
   if (w <= max && h <= max) return { w, h };
@@ -1522,7 +4217,7 @@ window.addEventListener("keydown", e => {
   if (tag === "INPUT" || tag === "TEXTAREA" || e.target.getAttribute("contenteditable") === "true") return;
   if (e.code === "Space") { spaceDown = true; viewport.classList.add("space"); e.preventDefault(); }
   if (e.key === "Delete" || e.key === "Backspace") {
-    if (selectedId != null) { deleteItem(selectedId); e.preventDefault(); }
+    if (selectedIds.size > 0 || selectedId != null) { deleteSelected(); e.preventDefault(); }
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
     const it = getItem(selectedId);
@@ -1717,6 +4412,13 @@ function buildMenuGroups(sx, sy, item) {
       const el = world.querySelector(`.item[data-id="${item.id}"]`);
       if (el) onDoubleClickItem({ stopPropagation(){} }, item, el);
     }});
+    main.push({
+      label: "Color",
+      submenu: Object.entries(NOTE_COLORS).map(([id, c]) => ({
+        label: `<span class="ctx-dot" style="background:${c.bg}"></span>${c.label}`,
+        action: () => { item.color = id; render(); save(); },
+      })),
+    });
   } else {
     main.push({ label: "Rename", action: () => {
       const v = prompt("Name", item.label || "");
@@ -1836,7 +4538,51 @@ function openVersionModal(item) {
   } else { statusEl.style.display = "none"; }
   document.getElementById("vm-current-img").src = item.src;
   document.getElementById("vm-current-caption").textContent = "Current version";
+  // Note button: highlight if note exists
+  const noteBtn = document.getElementById("vm-note-btn");
+  noteBtn.classList.toggle("has-note", !!item.note);
+  noteBtn.title = item.note ? `Note: ${item.note.slice(0, 80)}${item.note.length > 80 ? "…" : ""}` : "Add note";
   renderVersionHistory();
+  renderAltsColumnInVersionModal(item);
+}
+
+function renderAltsColumnInVersionModal(item) {
+  const col = document.getElementById("vm-alts-list");
+  col.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "vm-alts-title";
+  title.textContent = "Alt";
+  col.appendChild(title);
+  if (!item.hasAlt) {
+    const empty = document.createElement("div");
+    empty.className = "vm-alts-empty";
+    empty.textContent = "no alt";
+    col.appendChild(empty);
+    return;
+  }
+  const thumb = document.createElement("div");
+  thumb.className = "alt-thumb";
+  thumb.title = item.altNode?.label ? `Alt: ${item.altNode.label}` : "Open alt version";
+  if (item.altNode?.src) {
+    const img = document.createElement("img");
+    img.src = item.altNode.src;
+    thumb.appendChild(img);
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "alt-thumb-empty";
+    empty.textContent = "★";
+    thumb.appendChild(empty);
+  }
+  const badge = document.createElement("div");
+  badge.className = "alt-thumb-badge";
+  badge.textContent = "ALT";
+  thumb.appendChild(badge);
+  thumb.addEventListener("click", e => {
+    e.stopPropagation();
+    closeVersionModal();   // close the parent version modal first
+    openAltModal(item);
+  });
+  col.appendChild(thumb);
 }
 function closeVersionModal() {
   document.getElementById("version-modal").classList.remove("visible");
@@ -1920,6 +4666,14 @@ function renderVersionHistory() {
 
 document.getElementById("vm-close").addEventListener("click", closeVersionModal);
 document.querySelector("#version-modal .vm-backdrop").addEventListener("click", closeVersionModal);
+document.getElementById("vm-note-btn").addEventListener("click", e => {
+  const item = getItem(versionModalItemId);
+  if (item) { hideNoteTip(); openNotePopup(item, e.currentTarget); }
+});
+wireNoteHover(document.getElementById("vm-note-btn"), () => {
+  const item = getItem(versionModalItemId);
+  return item?.note;
+}, () => getItem(versionModalItemId)?.noteColor);
 window.addEventListener("keydown", e => {
   if (e.key === "Escape" && versionModalItemId != null) {
     closeVersionModal();
@@ -2150,6 +4904,147 @@ function renderTopbar() {
   rt.appendChild(addRelease);
 }
 
+// Filter buttons (Leader / Overlord / Sovereign)
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentFilter = btn.dataset.f;
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.toggle("active", b === btn));
+    render();
+  });
+});
+
+// ---------- Alt-version modal ----------
+let altModalItemId = null;
+
+function openAltModal(item) {
+  if (!item) return;
+  if (!item.altNode) item.altNode = { label: "", status: null, note: "", src: null, archive: [] };
+  altModalItemId = item.id;
+  document.getElementById("alt-parent-name").textContent = item.label ? `Alt for "${item.label}"` : "Alt version";
+  renderAltNode();
+  document.getElementById("alt-modal").classList.add("visible");
+}
+function closeAltModal() {
+  document.getElementById("alt-modal").classList.remove("visible");
+  altModalItemId = null;
+}
+function renderAltNode() {
+  const item = getItem(altModalItemId);
+  if (!item || !item.altNode) return;
+  const alt = item.altNode;
+
+  // Label input
+  const lblInput = document.getElementById("alt-label");
+  if (document.activeElement !== lblInput) lblInput.value = alt.label || "";
+
+  // Note button highlight
+  const noteBtn = document.getElementById("alt-note-btn");
+  noteBtn.classList.toggle("has-note", !!alt.note);
+  noteBtn.title = alt.note ? `Note: ${alt.note.slice(0, 80)}${alt.note.length > 80 ? "…" : ""}` : "Add note";
+
+  // Main image area
+  const main = document.getElementById("alt-main");
+  main.innerHTML = "";
+  if (alt.src) {
+    const img = document.createElement("img");
+    img.src = alt.src;
+    main.appendChild(img);
+  } else {
+    const ph = document.createElement("div");
+    ph.id = "alt-placeholder";
+    ph.textContent = "Drop or Ctrl+V to add image";
+    main.appendChild(ph);
+  }
+
+  // Status chips
+  document.querySelectorAll("#alt-modal .alt-status-row .status-chip").forEach(c => {
+    c.classList.toggle("active", c.dataset.st === alt.status);
+  });
+}
+
+document.getElementById("alt-close").addEventListener("click", closeAltModal);
+document.querySelector("#alt-modal .alt-backdrop").addEventListener("click", closeAltModal);
+
+document.getElementById("alt-label").addEventListener("input", e => {
+  const item = getItem(altModalItemId);
+  if (!item || !item.altNode) return;
+  item.altNode.label = e.target.value;
+  save();
+});
+document.getElementById("alt-note-btn").addEventListener("click", e => {
+  const item = getItem(altModalItemId);
+  if (item) { hideNoteTip(); openNotePopup(item, e.currentTarget, "altNote"); }
+});
+wireNoteHover(document.getElementById("alt-note-btn"), () => {
+  const item = getItem(altModalItemId);
+  return item?.altNode?.note;
+}, () => getItem(altModalItemId)?.altNode?.noteColor);
+document.querySelectorAll("#alt-modal .alt-status-row .status-chip").forEach(c => {
+  c.addEventListener("click", () => {
+    const item = getItem(altModalItemId);
+    if (!item || !item.altNode) return;
+    item.altNode.status = item.altNode.status === c.dataset.st ? null : c.dataset.st;
+    document.querySelectorAll("#alt-modal .alt-status-row .status-chip").forEach(o =>
+      o.classList.toggle("active", o.dataset.st === item.altNode.status));
+    save();
+  });
+});
+
+// Drop / paste on the alt-node area
+const altNodeEl = document.getElementById("alt-node");
+altNodeEl.addEventListener("dragenter", e => { if (e.dataTransfer.types.includes("Files")) altNodeEl.classList.add("drag-over"); });
+altNodeEl.addEventListener("dragleave", e => { if (!altNodeEl.contains(e.relatedTarget)) altNodeEl.classList.remove("drag-over"); });
+altNodeEl.addEventListener("dragover",  e => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); });
+altNodeEl.addEventListener("drop", e => {
+  e.preventDefault();
+  e.stopPropagation();
+  altNodeEl.classList.remove("drag-over");
+  const item = getItem(altModalItemId);
+  if (!item || !item.altNode) return;
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"));
+  if (!files.length) return;
+  fileToImage(files[0], src => {
+    // archive previous alt image
+    if (item.altNode.src) {
+      if (!item.altNode.archive) item.altNode.archive = [];
+      item.altNode.archive.push({ src: item.altNode.src, uploadedAt: Date.now(), status: item.altNode.status });
+    }
+    item.altNode.src = src;
+    renderAltNode();
+    save();
+  });
+});
+// Paste while alt modal is open
+window.addEventListener("paste", e => {
+  if (altModalItemId == null) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.type.startsWith("image/")) {
+      const file = it.getAsFile();
+      const item = getItem(altModalItemId);
+      if (!item || !item.altNode) return;
+      fileToImage(file, src => {
+        if (item.altNode.src) {
+          if (!item.altNode.archive) item.altNode.archive = [];
+          item.altNode.archive.push({ src: item.altNode.src, uploadedAt: Date.now(), status: item.altNode.status });
+        }
+        item.altNode.src = src;
+        renderAltNode();
+        save();
+      });
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+  }
+}, true); // capture phase so we intercept before the main paste handler
+
+// Esc to close alt modal
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && altModalItemId != null) closeAltModal();
+});
+
 // Editable release title
 document.getElementById("release-title").addEventListener("input", e => {
   const current = cb();
@@ -2159,12 +5054,333 @@ document.getElementById("release-title").addEventListener("input", e => {
   save();
 });
 
-// ---------- Init ----------
-load();
-if (cb().viewMode === "overview") viewMode = "overview";
-applyView();
-render();
-renderTopbar();
+// ---------- Auth UI wiring ----------
+document.getElementById("auth-password-btn").addEventListener("click", () => {
+  const email = document.getElementById("auth-email").value.trim().toLowerCase();
+  const password = document.getElementById("auth-password").value;
+  if (!email || !email.includes("@")) { showAuthError("Enter a valid email."); return; }
+  if (!password) { showAuthError("Enter your password."); return; }
+  signInWithPassword(email, password);
+});
+document.getElementById("auth-email").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const pw = document.getElementById("auth-password").value;
+    if (pw) document.getElementById("auth-password-btn").click();
+    else    document.getElementById("auth-password").focus();
+  }
+});
+document.getElementById("auth-password").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("auth-password-btn").click();
+});
+
+// Team menu wiring
+document.getElementById("btn-team").addEventListener("click", openMembersModal);
+document.getElementById("btn-backoffice").addEventListener("click", () => {
+  // Same domain, sibling file — auth session persists automatically.
+  window.location.href = "back-office.html";
+});
+document.getElementById("btn-logout").addEventListener("click", () => {
+  if (confirm("Log out?")) logout();
+});
+
+// Set password wiring
+document.getElementById("btn-set-password").addEventListener("click", openPasswordModal);
+document.getElementById("pw-cancel").addEventListener("click", closePasswordModal);
+document.getElementById("pw-backdrop").addEventListener("click", closePasswordModal);
+document.getElementById("pw-save").addEventListener("click", saveNewPassword);
+document.getElementById("pw-confirm").addEventListener("keydown", e => {
+  if (e.key === "Enter") saveNewPassword();
+});
+
+function openPasswordModal() {
+  document.getElementById("pw-new").value = "";
+  document.getElementById("pw-confirm").value = "";
+  document.getElementById("pw-error").style.display = "none";
+  document.getElementById("pw-success").style.display = "none";
+  document.getElementById("password-modal").style.display = "block";
+  setTimeout(() => document.getElementById("pw-new").focus(), 0);
+}
+function closePasswordModal() {
+  document.getElementById("password-modal").style.display = "none";
+}
+async function saveNewPassword() {
+  const np = document.getElementById("pw-new").value;
+  const cp = document.getElementById("pw-confirm").value;
+  const errEl = document.getElementById("pw-error");
+  const okEl  = document.getElementById("pw-success");
+  errEl.style.display = "none"; okEl.style.display = "none";
+  if (np.length < 6) { errEl.textContent = "Password must be at least 6 characters."; errEl.style.display = "block"; return; }
+  if (np !== cp)     { errEl.textContent = "Passwords don't match.";                  errEl.style.display = "block"; return; }
+  const btn = document.getElementById("pw-save");
+  btn.disabled = true; btn.textContent = "Saving…";
+  const { error } = await sb.auth.updateUser({ password: np });
+  btn.disabled = false; btn.textContent = "Save";
+  if (error) { errEl.textContent = error.message; errEl.style.display = "block"; return; }
+  okEl.style.display = "block";
+  setTimeout(closePasswordModal, 1400);
+}
+document.getElementById("mm-close").addEventListener("click", closeMembersModal);
+document.querySelector("#members-modal .mm-backdrop").addEventListener("click", closeMembersModal);
+document.getElementById("mm-add-btn").addEventListener("click", addMember);
+document.getElementById("mm-new-email").addEventListener("keydown", e => {
+  if (e.key === "Enter") addMember();
+});
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("members-modal").classList.contains("visible")) {
+    closeMembersModal();
+  }
+});
+
+// ---------- Boot ----------
+async function bootApp() {
+  // Load from cloud if available, else from localStorage as fallback
+  if (USE_SUPABASE && currentUser) {
+    // Kick the members cache load in parallel with the board load — both are
+    // independent network calls and we need both before the first render
+    // (cache feeds the artist dropdown in the inspector).
+    const membersP = loadMembersCache();
+    const ok = await cloudLoad();
+    if (!ok) {
+      console.warn("Cloud load failed — using local cache");
+      load();
+    }
+    await membersP;
+    subscribeRealtime();
+  } else {
+    load();
+  }
+  applyRoleUI();
+  if (cb()?.viewMode === "overview") viewMode = "overview";
+  applyView();
+  render();
+  renderTopbar();
+
+  // Phase 4.5: migrate any data: URLs in the loaded state to Supabase Storage.
+  // Runs in the background — UI stays usable. On completion, the next
+  // cloudSave pushes a tiny payload (URLs only). Safe to call repeatedly;
+  // already-migrated items are skipped.
+  if (USE_SUPABASE && sb && currentUser && canEdit()) {
+    migrateImagesToStorage();
+  }
+}
+
+// ---------- Settings (AI config) — local only, no secrets ----------
+const SETTINGS_KEY = "figma-board-settings-v1";
+const DEFAULT_SETTINGS = {
+  aiProvider: "",
+  aiModel: "",
+  aiPrompt: `You are a creative name generator for fantasy miniatures (Raging Heroes universe).
+Suggest a SINGLE short character name (1-3 words max), evocative and gothic/dark fantasy in tone.
+Reply with ONLY the name itself, no explanation, no quotes.
+
+Description: {description}
+Avoid: {negative}`,
+  aiNegative: "",
+};
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const parsed = JSON.parse(raw);
+    // Strip any legacy local API key — keys live server-side now
+    delete parsed.aiKey;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch { return { ...DEFAULT_SETTINGS }; }
+}
+function saveSettings(s) {
+  // Never persist API keys client-side
+  const safe = { ...s }; delete safe.aiKey;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe)); } catch {}
+}
+function openSettingsModal() {
+  const s = loadSettings();
+  document.getElementById("set-ai-provider").value = s.aiProvider;
+  document.getElementById("set-ai-model").value    = s.aiModel;
+  document.getElementById("set-ai-prompt").value   = s.aiPrompt;
+  document.getElementById("set-ai-negative").value = s.aiNegative;
+  document.getElementById("settings-modal").classList.add("visible");
+  document.getElementById("sm-saved").classList.remove("visible");
+}
+function closeSettingsModal() {
+  document.getElementById("settings-modal").classList.remove("visible");
+}
+document.getElementById("btn-settings").addEventListener("click", openSettingsModal);
+document.getElementById("sm-close").addEventListener("click", closeSettingsModal);
+document.querySelector("#settings-modal .sm-backdrop").addEventListener("click", closeSettingsModal);
+document.getElementById("sm-save").addEventListener("click", () => {
+  saveSettings({
+    aiProvider: document.getElementById("set-ai-provider").value,
+    aiModel:    document.getElementById("set-ai-model").value,
+    aiPrompt:   document.getElementById("set-ai-prompt").value,
+    aiNegative: document.getElementById("set-ai-negative").value,
+  });
+  const saved = document.getElementById("sm-saved");
+  saved.classList.add("visible");
+  setTimeout(() => saved.classList.remove("visible"), 1800);
+});
+
+// ---------- Name generator (AI) ----------
+let namegenItemId = null;
+let lastGeneratedName = "";
+
+function openNameGenPanel(item, anchorEl) {
+  namegenItemId = item.id;
+  const popup = document.getElementById("namegen-popup");
+  popup.classList.add("visible");
+  document.getElementById("ng-description").value = "";
+  document.getElementById("ng-negative").value = "";
+  const useImg = document.getElementById("ng-use-image");
+  useImg.checked = !!item.src;
+  useImg.disabled = !item.src;
+  document.getElementById("ng-status").textContent = "";
+  document.getElementById("ng-error").classList.remove("visible");
+  document.getElementById("ng-result").classList.remove("visible");
+  document.getElementById("ng-regen").style.display = "none";
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = popup.offsetWidth, ph = popup.offsetHeight;
+  let x = rect.left, y = rect.bottom + 6;
+  if (x + pw > window.innerWidth - 8)  x = window.innerWidth - pw - 8;
+  if (y + ph > window.innerHeight - 8) y = rect.top - ph - 6;
+  if (x < 8) x = 8;
+  if (y < 8) y = 8;
+  popup.style.left = x + "px";
+  popup.style.top  = y + "px";
+  setTimeout(() => document.getElementById("ng-description").focus(), 0);
+}
+function closeNameGenPanel() {
+  document.getElementById("namegen-popup").classList.remove("visible");
+  namegenItemId = null;
+}
+function showNgError(msg) {
+  const e = document.getElementById("ng-error");
+  e.textContent = msg; e.classList.add("visible");
+}
+function showNgResult(name) {
+  document.getElementById("ng-result-text").textContent = name;
+  document.getElementById("ng-result").classList.add("visible");
+  document.getElementById("ng-regen").style.display = "inline-block";
+}
+
+async function generateName() {
+  const settings = loadSettings();
+  if (!settings.aiProvider) { showNgError("Configure an AI provider in ⚙ Settings first."); return; }
+  if (!USE_SUPABASE || !sb) { showNgError("AI proxy requires Supabase. Not available in local-only mode."); return; }
+  const item = getItem(namegenItemId);
+  if (!item) return;
+  const description = document.getElementById("ng-description").value.trim();
+  const extraNeg = document.getElementById("ng-negative").value.trim();
+  const useImage = document.getElementById("ng-use-image").checked && item.src;
+  if (!description) { showNgError("Enter a short description first."); return; }
+
+  const combinedNeg = [settings.aiNegative, extraNeg].filter(Boolean).join("\n").trim();
+  const prompt = settings.aiPrompt
+    .replace(/\{description\}/g, description)
+    .replace(/\{negative\}/g, combinedNeg || "(none)");
+
+  document.getElementById("ng-error").classList.remove("visible");
+  document.getElementById("ng-result").classList.remove("visible");
+  document.getElementById("ng-status").textContent = "Generating…";
+  const btn = document.getElementById("ng-generate");
+  btn.disabled = true;
+  document.getElementById("ng-regen").disabled = true;
+  try {
+    const name = await callAiProxy({
+      provider: settings.aiProvider,
+      model: settings.aiModel,
+      prompt,
+      image: useImage ? item.src : null,
+    });
+    lastGeneratedName = (name || "").trim().replace(/^["']|["']$/g, "");
+    if (!lastGeneratedName) throw new Error("Empty response from AI");
+    showNgResult(lastGeneratedName);
+  } catch (e) {
+    showNgError(e.message || String(e));
+  } finally {
+    btn.disabled = false;
+    document.getElementById("ng-regen").disabled = false;
+    document.getElementById("ng-status").textContent = "";
+  }
+}
+
+// Calls the Supabase Edge Function `ai-proxy`. The actual API key lives
+// server-side in the function's environment — never exposed to the browser.
+async function callAiProxy({ provider, model, prompt, image }) {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/ai-proxy`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type":  "application/json",
+        "apikey":        SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ provider, model, prompt, image, maxTokens: 120 }),
+    });
+  } catch (e) {
+    throw new Error(`Network error reaching ai-proxy: ${e.message}`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error("ai-proxy function not deployed. See README/CONTEXT.md for setup.");
+    }
+    console.error("ai-proxy error:", data);
+    throw new Error(data.error || `Proxy error (${res.status})`);
+  }
+  return data.text || "";
+}
+
+document.getElementById("ng-close").addEventListener("click", closeNameGenPanel);
+document.getElementById("ng-generate").addEventListener("click", generateName);
+document.getElementById("ng-regen").addEventListener("click", generateName);
+document.getElementById("ng-use").addEventListener("click", () => {
+  const item = getItem(namegenItemId);
+  if (!item || !lastGeneratedName) return;
+  item.label = lastGeneratedName;
+  // Update the label in the DOM in-place (without full re-render to preserve scroll/focus)
+  const el = world.querySelector(`.item[data-id="${item.id}"]`);
+  if (el) {
+    let labelEl = el.querySelector(":scope > .label");
+    if (labelEl) labelEl.textContent = item.label;
+    else {
+      labelEl = document.createElement("div");
+      labelEl.className = "label";
+      labelEl.textContent = item.label;
+      el.appendChild(labelEl);
+    }
+  }
+  if (selectedId === item.id) {
+    const inspLabelEl = document.getElementById("insp-label");
+    if (inspLabelEl) inspLabelEl.value = item.label;
+  }
+  save();
+  closeNameGenPanel();
+});
+window.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("namegen-popup").classList.contains("visible")) closeNameGenPanel();
+  if (document.getElementById("settings-modal").classList.contains("visible")) closeSettingsModal();
+});
+
+async function init() {
+  // Try to load Supabase SDK if configured. If it fails, we silently drop to local mode.
+  if (USE_SUPABASE) await initSupabase();
+
+  if (USE_SUPABASE) {
+    const authed = await authInit();
+    if (authed) await bootApp();
+    // else: auth screen is shown, bootApp runs after successful verifyOtp
+  } else {
+    // Local-only mode (no Supabase keys configured OR SDK could not load)
+    document.getElementById("auth-screen").classList.remove("visible");
+    await bootApp();
+  }
+}
+init();
 </script>
 </body>
 </html>
