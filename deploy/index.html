@@ -152,6 +152,55 @@
     flex-shrink: 0;
   }
   .btn-add-tab:hover { color: var(--text); border-color: var(--accent); }
+  /* Release tabs: drag-to-reorder marks + archived state */
+  .tab { position: relative; }
+  .tab.dragging { opacity: .35; }
+  .tab.drop-before::before, .tab.drop-after::after {
+    content: ""; position: absolute; top: 1px; bottom: 1px; width: 3px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .tab.drop-before::before { left: -4px; }
+  .tab.drop-after::after   { right: -4px; }
+  .tab.archived { font-style: italic; border: 1px dashed rgba(255,255,255,.25); }
+  .tab.archived:not(.active) { color: var(--muted); opacity: .75; }
+  .btn-add-tab.archive-toggle {
+    border-style: solid; border-color: rgba(255,255,255,.12); margin-left: auto;
+  }
+  .btn-add-tab.archive-toggle.open { color: var(--text); border-color: var(--accent); }
+  #archived-badge {
+    display: none; flex-shrink: 0; align-items: center; gap: 6px;
+    background: rgba(224,161,74,.15); color: var(--warn);
+    border: 1px solid rgba(224,161,74,.4); border-radius: 5px;
+    padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  #archived-badge.visible { display: inline-flex; }
+  #archived-badge:hover { background: rgba(224,161,74,.28); }
+  /* Archived releases popover (anchored under the topbar, right side) */
+  #archive-popover {
+    display: none; position: absolute; top: 100%; right: 14px; margin-top: -2px;
+    z-index: 120; min-width: 280px; max-width: 420px; max-height: 60vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,.55); padding: 6px;
+  }
+  #archive-popover.visible { display: block; }
+  #archive-popover .ap-title {
+    font-size: 11px; color: var(--muted); padding: 4px 8px 6px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  #archive-popover .ap-empty { color: var(--muted); padding: 8px; font-size: 12px; }
+  #archive-popover .ap-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 5px; cursor: pointer;
+  }
+  #archive-popover .ap-row:hover { background: var(--panel-2); }
+  #archive-popover .ap-row.current { outline: 1px solid var(--accent); }
+  #archive-popover .ap-year { color: var(--muted); font-size: 11px; font-weight: 700; min-width: 34px; }
+  #archive-popover .ap-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #archive-popover .ap-restore {
+    background: transparent; color: var(--accent); border: 1px solid rgba(79,140,255,.4);
+    border-radius: 4px; padding: 2px 8px; font: inherit; font-size: 11px; cursor: pointer;
+  }
+  #archive-popover .ap-restore:hover { background: rgba(79,140,255,.15); }
   #viewport.panning { cursor: grabbing; }
   #viewport.space   { cursor: grab; }
   #world {
@@ -1093,6 +1142,7 @@
   #ctx-menu .ctx-item .shortcut { color: var(--muted); font-size: 11px; }
   #ctx-menu .ctx-sep { height: 1px; background: rgba(255,255,255,.1); margin: 4px 0; }
   #ctx-menu .ctx-item.danger { color: var(--danger); }
+  #ctx-menu .ctx-item.disabled { opacity: .4; pointer-events: none; }
   #ctx-menu .ctx-sub { position: relative; }
   #ctx-menu .ctx-sub::after { content: "▸"; color: var(--muted); }
   #ctx-menu .ctx-submenu {
@@ -1481,7 +1531,10 @@
   body.readonly .tier-select { pointer-events: none; opacity: .8; }
   body.readonly .node-corner-tools .star-icon { cursor: default; }
   body.readonly .btn-add-tab { display: none; }
+  body.readonly .btn-add-tab.archive-toggle { display: inline-block; }
   body.readonly .tab-close { display: none; }
+  body.readonly #archive-popover .ap-restore { display: none; }
+  body.readonly #archived-badge { pointer-events: none; }
   body.readonly #release-title { pointer-events: none; }
 
   /* Image migration banner (Phase 4.5 — runs once per board to move data URLs to Storage) */
@@ -1526,6 +1579,7 @@
 <div id="topbar">
   <div class="title-row">
     <input id="release-title" type="text" placeholder="Release name…" />
+    <button id="archived-badge" title="This release is archived">📦 Archived</button>
     <div class="filter-row">
       <span class="filter-label">Show:</span>
       <button class="filter-btn" data-f="leader">Leader</button>
@@ -1553,6 +1607,7 @@
   </div>
   <div id="year-tabs"   class="topbar-tabs"></div>
   <div id="release-tabs" class="topbar-tabs"></div>
+  <div id="archive-popover"></div>
 </div>
 
 <div id="auth-screen">
@@ -1954,7 +2009,7 @@ let state = {
 function cb() {
   let b = state.boards.find(b => b.id === state.currentBoardId);
   if (!b && state.boards.length) {
-    b = state.boards[0];
+    b = state.boards.find(x => !x.archived) || state.boards[0];
     state.currentBoardId = b.id;
   }
   return b;
@@ -2042,9 +2097,14 @@ function isCursorOverFloatingUi() {
 }
 let topbarHideTimer = null;
 const TOPBAR_HIDE_DELAY = 3000; // ms — wait before the bar slides back up
+let archivePopoverOpen = false; // see "Archived releases popover" below
+function isTopbarPinnedOpen() {
+  // Keep the bar while the archived-releases popover or a tab menu is in use
+  return archivePopoverOpen || document.getElementById("ctx-menu").classList.contains("visible");
+}
 function refreshTopbarVisibility() {
   const inZone = lastMouseY < TOPBAR_REVEAL_ZONE;
-  const wantShow = topbarGrace || (inZone && !isCursorOverFloatingUi());
+  const wantShow = topbarGrace || isTopbarPinnedOpen() || (inZone && !isCursorOverFloatingUi());
 
   if (wantShow) {
     // Cancel any pending hide and show immediately
@@ -2061,7 +2121,7 @@ function refreshTopbarVisibility() {
       topbarHideTimer = null;
       // Re-check in case the cursor came back during the wait
       const stillInZone = lastMouseY < TOPBAR_REVEAL_ZONE;
-      if (stillInZone && !isCursorOverFloatingUi()) return;
+      if (isTopbarPinnedOpen() || (stillInZone && !isCursorOverFloatingUi())) return;
       topbarEl.classList.add("hidden");
       document.body.classList.add("topbar-hidden");
     }, TOPBAR_HIDE_DELAY);
@@ -2215,7 +2275,7 @@ async function cloudLoad() {
     state.nextBoardId = remote.nextBoardId || 1;
     // Make sure currentBoardId is still valid
     if (!state.boards.find(b => b.id === state.currentBoardId)) {
-      state.currentBoardId = state.boards[0]?.id ?? null;
+      state.currentBoardId = (state.boards.find(b => !b.archived) || state.boards[0])?.id ?? null;
     }
     runItemMigrations(state.boards);
     isApplyingRemote = false;
@@ -2292,7 +2352,7 @@ function subscribeRealtime() {
             state.boards = payload.new.data.boards || [];
             state.nextBoardId = payload.new.data.nextBoardId || 1;
             if (!state.boards.find(b => b.id === state.currentBoardId)) {
-              state.currentBoardId = state.boards[0]?.id ?? null;
+              state.currentBoardId = (state.boards.find(b => !b.archived) || state.boards[0])?.id ?? null;
             }
             runItemMigrations(state.boards);
           } finally {
@@ -3804,20 +3864,39 @@ document.addEventListener("mouseup", e => {
   save();
 }, true);
 
+// A text field (release title, inspector, note popup, sticky note…) can keep
+// the focus after the user clicks the canvas, because the mousedown handlers
+// below call preventDefault() — which also cancels the browser's focus change.
+// With an <input> focused, the keyboard handler ignores Space/N/S/F/M… so the
+// hand tool "stops working". Drop that focus ourselves when the canvas is used.
+function blurActiveTextField() {
+  const ae = document.activeElement;
+  if (!ae || ae === document.body) return;
+  if (ae.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(ae.tagName)) ae.blur();
+}
+
+// Pan: middle-click anywhere, or Space+left-drag anywhere.
+// Registered in the CAPTURE phase so it wins over item/group drag handlers
+// (they stopPropagation) — Space+drag must pan even when the press lands on a card.
 viewport.addEventListener("mousedown", e => {
-  // If we're already starting a zoom-box, don't trigger pan/drag
   if (zoomBox) return;
+  if (!(e.button === 1 || (e.button === 0 && spaceDown))) return;
+  if (e.button === 1 && e.target.closest("a")) return; // keep middle-click "open link in new tab" on pills
+  blurActiveTextField();
+  pan = { sx: e.clientX, sy: e.clientY, ox: cb().view.x, oy: cb().view.y };
+  viewport.classList.add("panning");
+  cancelHoverTip();
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
+
+viewport.addEventListener("mousedown", e => {
+  // If we're already starting a zoom-box or a pan, don't trigger marquee/drag
+  if (zoomBox || pan) return;
   const onBg = e.target === viewport || e.target === world;
-  // Pan: middle-click anywhere, or space+left-drag anywhere
-  if (e.button === 1 || (e.button === 0 && spaceDown)) {
-    pan = { sx: e.clientX, sy: e.clientY, ox: cb().view.x, oy: cb().view.y };
-    viewport.classList.add("panning");
-    cancelHoverTip();
-    e.preventDefault();
-    return;
-  }
   // Marquee: left-click on empty bg
   if (e.button === 0 && onBg) {
+    blurActiveTextField();
     marquee = {
       sx: e.clientX, sy: e.clientY,
       shift: e.shiftKey,
@@ -4246,6 +4325,7 @@ window.addEventListener("keydown", e => {
 window.addEventListener("keyup", e => {
   if (e.code === "Space") { spaceDown = false; viewport.classList.remove("space"); }
 });
+window.addEventListener("blur", () => { spaceDown = false; viewport.classList.remove("space"); });
 
 // ---------- Toolbar ----------
 document.getElementById("btn-add-note").onclick  = () => addNote(window.innerWidth/2, window.innerHeight/2, "");
@@ -4351,8 +4431,11 @@ function escAttr(s) { return esc(s); }
 const ctxMenu = document.getElementById("ctx-menu");
 
 function showContextMenu(sx, sy, item) {
+  showMenuGroups(sx, sy, buildMenuGroups(sx, sy, item));
+}
+// Generic menu renderer — also used by the release-tab menu (see showTabMenu)
+function showMenuGroups(sx, sy, groups) {
   ctxMenu.innerHTML = "";
-  const groups = buildMenuGroups(sx, sy, item);
   for (let g = 0; g < groups.length; g++) {
     if (g > 0) {
       const sep = document.createElement("div");
@@ -4387,7 +4470,7 @@ function buildMenuEntry(entry) {
     return wrap;
   }
   const el = document.createElement("div");
-  el.className = "ctx-item" + (entry.danger ? " danger" : "");
+  el.className = "ctx-item" + (entry.danger ? " danger" : "") + (entry.disabled ? " disabled" : "");
   el.innerHTML = `<span>${entry.label}</span>${entry.shortcut ? `<span class="shortcut">${entry.shortcut}</span>` : ""}`;
   el.addEventListener("click", () => {
     hideContextMenu();
@@ -4828,10 +4911,10 @@ function createYear() {
   const y = parseInt(raw, 10);
   if (isNaN(y)) { alert("Invalid year."); return; }
   if (existing.includes(y)) {
-    // Year already exists — just switch to first board of that year
-    const boards = state.boards.filter(b => b.year === y);
-    if (boards.length) switchToBoard(boards[0].id);
-    return;
+    // Year already exists — switch to its first active board (archived ones
+    // don't count: if they're all archived, fall through and add a fresh one)
+    const target = getActiveBoards().find(b => b.year === y);
+    if (target) { switchToBoard(target.id); return; }
   }
   createBoardInYear(y);
 }
@@ -4846,7 +4929,7 @@ function deleteBoard(id) {
   if (!confirm(`Delete release "${target.name}"? This cannot be undone.`)) return;
   state.boards = state.boards.filter(b => b.id !== id);
   if (state.currentBoardId === id) {
-    state.currentBoardId = state.boards[0].id;
+    state.currentBoardId = (fallbackBoard(target.year, null) || state.boards[0]).id;
   }
   selectedId = null;
   applyView();
@@ -4861,6 +4944,60 @@ function getYears() {
 function getBoardsInYear(year) {
   return state.boards.filter(b => b.year === year);
 }
+// Archived boards stay in state (and sync) but are hidden from the tabs so old
+// releases stop cluttering the bar. The board currently open is always shown,
+// so an archived release can be consulted, then restored or left again.
+function isBoardVisible(b) { return !b.archived || b.id === state.currentBoardId; }
+function getVisibleBoardsInYear(year) { return getBoardsInYear(year).filter(isBoardVisible); }
+function getVisibleYears() { return getYears().filter(y => getBoardsInYear(y).some(isBoardVisible)); }
+function getArchivedBoards() { return state.boards.filter(b => b.archived); }
+function getActiveBoards() { return state.boards.filter(b => !b.archived); }
+// Best board to land on when leaving `exclude`: active, same year first.
+function fallbackBoard(year, exclude) {
+  const active = getActiveBoards().filter(b => b !== exclude);
+  return active.find(b => b.year === year) || active[0] || state.boards.find(b => b !== exclude) || null;
+}
+
+function setBoardArchived(id, archived) {
+  if (!canEdit()) return;
+  const b = state.boards.find(x => x.id === id);
+  if (!b || !!b.archived === !!archived) return;
+  if (archived && getActiveBoards().length <= 1) { alert("Cannot archive the last active release."); return; }
+  if (archived) b.archived = true; else delete b.archived;
+  if (archived && state.currentBoardId === id) {
+    const next = fallbackBoard(b.year, b);
+    if (next) { switchToBoard(next.id); return; } // renders + saves
+  }
+  renderTopbar();
+  save();
+}
+
+// Reorder: put board `id` right before/after board `targetId` (same year).
+// Tab order = order in state.boards, so it syncs like everything else; boards
+// of other years keep their positions.
+function moveBoard(id, targetId, before) {
+  if (!canEdit()) return;
+  const b = state.boards.find(x => x.id === id);
+  const t = state.boards.find(x => x.id === targetId);
+  if (!b || !t || b === t || b.year !== t.year) return;
+  const list = getBoardsInYear(b.year).filter(x => x !== b);
+  const ti = list.indexOf(t);
+  list.splice(before ? ti : ti + 1, 0, b);
+  const slots = [];
+  state.boards.forEach((x, i) => { if (x.year === b.year) slots.push(i); });
+  slots.forEach((idx, k) => { state.boards[idx] = list[k]; });
+  renderTopbar();
+  save();
+}
+// One step left/right among the visible tabs of its year (delta = -1 | +1)
+function moveBoardBy(id, delta) {
+  const b = state.boards.find(x => x.id === id);
+  if (!b) return;
+  const vis = getVisibleBoardsInYear(b.year);
+  const j = vis.indexOf(b) + delta;
+  if (j < 0 || j >= vis.length) return;
+  moveBoard(id, vis[j].id, delta < 0);
+}
 
 function renderTopbar() {
   const current = cb();
@@ -4870,16 +5007,23 @@ function renderTopbar() {
   const title = document.getElementById("release-title");
   if (document.activeElement !== title) title.value = current.name;
 
-  // Year tabs
+  // Archived badge next to the title (shown while an archived release is open)
+  const editable = canEdit();
+  const badge = document.getElementById("archived-badge");
+  badge.classList.toggle("visible", !!current.archived);
+  badge.textContent = editable ? "📦 Archived · Restore" : "📦 Archived";
+  badge.title = editable ? "This release is archived — click to put it back in the tabs" : "This release is archived";
+
+  // Year tabs (a year whose releases are all archived is hidden too)
   const yt = document.getElementById("year-tabs");
   yt.innerHTML = "";
-  for (const year of getYears()) {
+  for (const year of getVisibleYears()) {
     const tab = document.createElement("div");
     tab.className = "tab year" + (year === current.year ? " active" : "");
     tab.textContent = String(year);
     tab.addEventListener("click", () => {
       if (year === current.year) return;
-      const boards = getBoardsInYear(year);
+      const boards = getVisibleBoardsInYear(year);
       if (boards.length) switchToBoard(boards[0].id);
     });
     yt.appendChild(tab);
@@ -4890,14 +5034,15 @@ function renderTopbar() {
   addYear.addEventListener("click", createYear);
   yt.appendChild(addYear);
 
-  // Release tabs (boards in current year)
+  // Release tabs (boards in current year; archived ones hidden unless open)
   const rt = document.getElementById("release-tabs");
   rt.innerHTML = "";
-  for (const b of getBoardsInYear(current.year)) {
+  for (const b of getVisibleBoardsInYear(current.year)) {
     const tab = document.createElement("div");
-    tab.className = "tab" + (b.id === current.id ? " active" : "");
+    tab.className = "tab" + (b.id === current.id ? " active" : "") + (b.archived ? " archived" : "");
+    tab.dataset.boardId = b.id;
     const name = document.createElement("span");
-    name.textContent = b.name || "Untitled";
+    name.textContent = (b.archived ? "📦 " : "") + (b.name || "Untitled");
     tab.appendChild(name);
     if (state.boards.length > 1) {
       const close = document.createElement("span");
@@ -4907,6 +5052,16 @@ function renderTopbar() {
       tab.appendChild(close);
     }
     tab.addEventListener("click", () => switchToBoard(b.id));
+    if (editable) {
+      tab.title = b.archived
+        ? "Archived release — right-click to restore"
+        : "Drag to reorder · right-click for options";
+      tab.addEventListener("contextmenu", e => {
+        e.preventDefault(); e.stopPropagation();
+        showTabMenu(e.clientX, e.clientY, b);
+      });
+      wireTabDrag(tab, b);
+    }
     rt.appendChild(tab);
   }
   const addRelease = document.createElement("button");
@@ -4914,7 +5069,139 @@ function renderTopbar() {
   addRelease.textContent = "+ Release";
   addRelease.addEventListener("click", () => createBoardInYear(current.year));
   rt.appendChild(addRelease);
+
+  // "Archived (n)" toggle at the right end of the row — all years
+  const archived = getArchivedBoards();
+  if (archived.length) {
+    const btn = document.createElement("button");
+    btn.className = "btn-add-tab archive-toggle" + (archivePopoverOpen ? " open" : "");
+    btn.textContent = `📦 Archived (${archived.length})`;
+    btn.title = "Show archived releases";
+    btn.addEventListener("click", e => { e.stopPropagation(); toggleArchivePopover(); });
+    rt.appendChild(btn);
+  } else if (archivePopoverOpen) {
+    closeArchivePopover();
+  }
+  if (archivePopoverOpen) renderArchivePopover();
 }
+
+// ---------- Release tabs: right-click menu ----------
+function showTabMenu(sx, sy, b) {
+  const vis = getVisibleBoardsInYear(b.year);
+  const i = vis.indexOf(b);
+  showMenuGroups(sx, sy, [
+    [
+      { label: "◀ Move left",  disabled: i <= 0,               action: () => moveBoardBy(b.id, -1) },
+      { label: "Move right ▶", disabled: i >= vis.length - 1,  action: () => moveBoardBy(b.id, +1) },
+    ],
+    [
+      b.archived
+        ? { label: "Restore from archive", action: () => setBoardArchived(b.id, false) }
+        : { label: "📦 Archive release",   action: () => setBoardArchived(b.id, true) },
+    ],
+    [
+      { label: "Delete release…", danger: true, action: () => deleteBoard(b.id) },
+    ],
+  ]);
+}
+
+// ---------- Release tabs: drag to reorder (HTML5 DnD, same year only) ----------
+let tabDragId = null;
+function clearTabDropMarks() {
+  document.querySelectorAll("#release-tabs .tab.drop-before, #release-tabs .tab.drop-after")
+    .forEach(t => t.classList.remove("drop-before", "drop-after"));
+}
+function wireTabDrag(tab, b) {
+  tab.draggable = true;
+  tab.addEventListener("dragstart", e => {
+    tabDragId = b.id;
+    tab.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", String(b.id)); } catch (_) {}
+  });
+  tab.addEventListener("dragend", () => {
+    tabDragId = null;
+    tab.classList.remove("dragging");
+    clearTabDropMarks();
+  });
+  tab.addEventListener("dragover", e => {
+    if (tabDragId == null || tabDragId === b.id) return;
+    e.preventDefault(); // allow the drop
+    e.dataTransfer.dropEffect = "move";
+    const r = tab.getBoundingClientRect();
+    const before = e.clientX < r.left + r.width / 2;
+    clearTabDropMarks();
+    tab.classList.add(before ? "drop-before" : "drop-after");
+  });
+  tab.addEventListener("dragleave", () => tab.classList.remove("drop-before", "drop-after"));
+  tab.addEventListener("drop", e => {
+    if (tabDragId == null || tabDragId === b.id) return;
+    e.preventDefault(); e.stopPropagation(); // keep the OS-file drop handler out of it
+    const r = tab.getBoundingClientRect();
+    const before = e.clientX < r.left + r.width / 2;
+    const dragged = tabDragId;
+    tabDragId = null;
+    clearTabDropMarks();
+    moveBoard(dragged, b.id, before);
+  });
+}
+
+// ---------- Archived releases popover ----------
+const archivePopover = document.getElementById("archive-popover");
+function toggleArchivePopover() { archivePopoverOpen ? closeArchivePopover() : openArchivePopover(); }
+function openArchivePopover() {
+  archivePopoverOpen = true;
+  renderArchivePopover();
+  archivePopover.classList.add("visible");
+  document.querySelector("#release-tabs .archive-toggle")?.classList.add("open");
+}
+function closeArchivePopover() {
+  archivePopoverOpen = false;
+  archivePopover.classList.remove("visible");
+  document.querySelector("#release-tabs .archive-toggle")?.classList.remove("open");
+  refreshTopbarVisibility();
+}
+function renderArchivePopover() {
+  archivePopover.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "ap-title"; title.textContent = "Archived releases";
+  archivePopover.appendChild(title);
+  const list = getArchivedBoards().slice().sort((a, b) => b.year - a.year);
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "ap-empty"; empty.textContent = "No archived release.";
+    archivePopover.appendChild(empty);
+    return;
+  }
+  for (const b of list) {
+    const row = document.createElement("div");
+    row.className = "ap-row" + (b.id === state.currentBoardId ? " current" : "");
+    row.title = "Open this release (view it without restoring)";
+    const year = document.createElement("span"); year.className = "ap-year"; year.textContent = String(b.year);
+    const name = document.createElement("span"); name.className = "ap-name"; name.textContent = b.name || "Untitled";
+    row.append(year, name);
+    const restore = document.createElement("button");
+    restore.className = "ap-restore"; restore.textContent = "Restore";
+    restore.title = "Put this release back in the tabs";
+    restore.addEventListener("click", e => { e.stopPropagation(); setBoardArchived(b.id, false); });
+    row.appendChild(restore);
+    row.addEventListener("click", () => { closeArchivePopover(); switchToBoard(b.id); });
+    archivePopover.appendChild(row);
+  }
+}
+document.getElementById("archived-badge").addEventListener("click", () => {
+  const current = cb();
+  if (current?.archived) setBoardArchived(current.id, false);
+});
+// Click outside or Esc closes the popover
+document.addEventListener("mousedown", e => {
+  if (!archivePopoverOpen) return;
+  if (archivePopover.contains(e.target) || e.target.closest(".archive-toggle")) return;
+  closeArchivePopover();
+}, true);
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape" && archivePopoverOpen) closeArchivePopover();
+});
 
 // Filter buttons (Leader / Overlord / Sovereign)
 document.querySelectorAll(".filter-btn").forEach(btn => {
@@ -5160,6 +5447,11 @@ async function bootApp() {
     subscribeRealtime();
   } else {
     load();
+  }
+  // Don't open on an archived release (e.g. it was archived by a colleague)
+  if (cb()?.archived) {
+    const next = fallbackBoard(cb().year, cb());
+    if (next) state.currentBoardId = next.id;
   }
   applyRoleUI();
   if (cb()?.viewMode === "overview") viewMode = "overview";

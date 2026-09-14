@@ -1,6 +1,6 @@
 # CONTEXT — Release Board
 
-Last updated: 2026-08-05
+Last updated: 2026-09-14
 
 Snapshot of project state for the next Claude session. Read this first, then `assets/` for the original product spec, and `BACKOFFICE_SPEC.md` for the planned billing module.
 
@@ -114,6 +114,8 @@ supabase/
 
 ### Canvas / interactions
 - Infinite pan/zoom canvas (Space+drag, middle-click, or drag on empty bg)
+  - Pan starts in a **capture-phase** `mousedown` on `#viewport` so Space+drag pans even when the press lands on a card (item handlers `stopPropagation`). Middle-click on a pill `<a>` is left alone (open link in new tab).
+  - `blurActiveTextField()` runs on canvas mousedown (pan + marquee): those handlers `preventDefault()`, which also cancels the browser's focus change — the release title / inspector field kept focus and the keyboard handler ignored Space/N/S/F/M ("la main ne marche plus"). Fixed 2026-09-14.
 - Wheel zoom centered on cursor
 - **Ctrl/Cmd + drag** = zoom-to-area rubber band (preempts item drag, fits selection to viewport)
 - Drop images from OS = creates image node at drop position
@@ -236,6 +238,9 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 - Filter buttons (top-right of title row)
 - User menu (admin/editor/reader): email + role badge, **Vaguy link** (wave icon → https://vaguy-studio.netlify.app), Team button (admin only), **⚙ Settings**, Password, Logout
 - Year tabs row + Release tabs row
+  - **Reorder** (2026-09-14): drag a release tab onto another (HTML5 DnD, same year only, insertion mark before/after) or right-click → Move left / Move right. Order = order in `state.boards` (`moveBoard(id, targetId, before)` rewrites the year's slots in place) → syncs like everything else, no migration.
+  - **Archive** (2026-09-14): right-click tab → Archive release sets `board.archived = true`. Archived boards are hidden from the tabs (and a year with only archived boards hides its year tab) but stay in state/sync. "📦 Archived (n)" button at the right end of the release row opens `#archive-popover` (all years): click a row = open it read-through (its tab shows as `📦 name`, italic/dashed, and an orange "📦 Archived · Restore" badge appears next to the title), "Restore" = unarchive. Last active board cannot be archived. `fallbackBoard(year, exclude)` picks where to land after archive/delete (active, same year first); `cb()`/`cloudLoad`/realtime/`bootApp` never land on an archived board. Readers see the popover but not Restore (`body.readonly`).
+  - Topbar auto-hide is suspended while the popover or the ctx-menu is open (`isTopbarPinnedOpen()`).
 - **Auto-hide**: bar is hidden by default; reveals when cursor is in top 26px; **3-second delay before hiding** when cursor leaves the zone
 - 3-second boot grace so the bar stays visible initially
 
