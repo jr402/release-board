@@ -1107,6 +1107,7 @@
   .info-pill.overview.filled.due     { background: var(--warn);   color: #fff; border-color: var(--warn); }
   .info-pill.overview.filled.loom    { background: var(--review); color: #fff; border-color: var(--review); }
   .info-pill.overview.filled.thread  { background: var(--wip);    color: #fff; border-color: var(--wip); }
+  .info-pill.overview.filled.size    { background: #9a7fe0;       color: #fff; border-color: #9a7fe0; }
   .info-pill.overview.filled.note    { background: #fff7c2;       color: #2a2a2a; border-color: #fff7c2; }
   .info-pill.overview.empty {
     background: transparent; color: var(--muted);
@@ -1820,6 +1821,17 @@
         <option value="diorama">Diorama</option>
       </select>
     </label>
+    <label>Miniature's size
+      <input type="text" id="insp-mini-size" list="mini-size-options" placeholder="e.g. 32mm, 54mm, 75mm" />
+      <datalist id="mini-size-options">
+        <option value="28mm"></option>
+        <option value="32mm"></option>
+        <option value="35mm"></option>
+        <option value="54mm"></option>
+        <option value="75mm"></option>
+        <option value="120mm"></option>
+      </datalist>
+    </label>
     <label>Base size
       <input type="text" id="insp-base" placeholder="e.g. 32mm round" />
     </label>
@@ -2038,6 +2050,7 @@ const INFO_FIELDS = [
   { kind: "thread", icon: "💬", letter: "T", label: "Thread" },
   { kind: "artist", icon: "👤", letter: "A", label: "Artiste" },
   { kind: "base",   icon: "⚙", letter: "S", label: "Base" },
+  { kind: "size",   icon: "📏", letter: "M", label: "Mini size" },
   { kind: "due",    icon: "📅", letter: "D", label: "Due" },
 ];
 function getInfoValue(item, kind) {
@@ -2046,6 +2059,7 @@ function getInfoValue(item, kind) {
   if (kind === "brief")  return item.briefLink;
   if (kind === "thread") return item.threadLink;
   if (kind === "base")   return item.baseSize;
+  if (kind === "size")   return item.miniSize;   // miniature's size (scale), e.g. "32mm"
   return null;
 }
 function defaultPillPosition(item, kind, mode) {
@@ -3496,6 +3510,7 @@ function updateInspector() {
       }
     }
     document.getElementById("insp-character-type").value = it.characterType || "";
+    document.getElementById("insp-mini-size").value = it.miniSize || "";
     document.getElementById("insp-base").value   = it.baseSize || "";
     document.getElementById("insp-due").value    = it.dueDate || "";
     document.getElementById("insp-brief").value  = it.briefLink || "";
@@ -3585,6 +3600,7 @@ document.getElementById("insp-character-type").addEventListener("change", e => {
   it.characterType = e.target.value || null;
   save();
 });
+wireField("insp-mini-size", "miniSize");
 wireField("insp-base",   "baseSize");
 wireField("insp-due",    "dueDate");
 wireField("insp-brief",  "briefLink");
@@ -4391,7 +4407,7 @@ function cancelHoverTip() {
 function showHoverTip(it) {
   // Only show if there is something to show
   const hasInfo = it.label || it.status || it.artist || it.dueDate ||
-                  it.note || it.briefLink || it.threadLink || it.baseSize;
+                  it.note || it.briefLink || it.threadLink || it.baseSize || it.miniSize;
   if (!hasInfo && it.type !== "image" && it.type !== "slot") return;
 
   let html = "";
@@ -4399,6 +4415,7 @@ function showHoverTip(it) {
   else if (!hasInfo) html += `<div class="tip-empty">${it.type === "slot" ? "Empty slot" : "Untitled"}</div>`;
   if (it.status) html += `<div class="tip-status ${it.status}">${it.status.toUpperCase()}</div>`;
   if (it.artist)   html += `<div class="tip-meta">Artist: <b>${esc(it.artist)}</b></div>`;
+  if (it.miniSize) html += `<div class="tip-meta">Mini size: <b>${esc(it.miniSize)}</b></div>`;
   if (it.baseSize) html += `<div class="tip-meta">Base: <b>${esc(it.baseSize)}</b></div>`;
   if (it.dueDate)  html += `<div class="tip-meta">Due: <b>${esc(it.dueDate)}</b></div>`;
   if (it.note)     html += `<div class="tip-note">${esc(it.note)}</div>`;

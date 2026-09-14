@@ -161,7 +161,8 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 - Cap by node width prevents overflow when node is small on screen
 
 ### Info system
-- `INFO_FIELDS` = brief, thread, artist, base, due (note is separate — see below)
+- `INFO_FIELDS` = brief, thread, artist, base, size, due (note is separate — see below)
+  - `size` = **miniature's size** (`item.miniSize`, e.g. "32mm", "54mm", "75mm") — added 2026-09-14. Inspector field "Miniature's size" (with a datalist of common scales) above Base size; 📏 pill in detail mode, purple "M" dot in overview, "Mini size" line in the hover tip. Not yet read by the back-office export (`base_size` only).
 - Two view modes (toggle `M` key or button):
   - **Detail** (default): pills in horizontal bar at bottom of each node
   - **Overview**: image dimmed, pills replaced by tiny colored dots above each node (scan for missing info)
