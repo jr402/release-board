@@ -18,6 +18,7 @@
     --review: #d77a3b;
     --wip: #4f8cff;
     --sketch: #8b8d95;
+    --question: #ff2d95;
   }
   * { box-sizing: border-box; }
   :root { --topbar-h: 112px; }
@@ -972,6 +973,23 @@
   .item[data-status="wip"]      .status-ring { box-shadow: inset 0 0 0 3px var(--wip); }
   .item[data-status="review"]   .status-ring { box-shadow: inset 0 0 0 3px var(--review); }
   .item[data-status="approved"] .status-ring { box-shadow: inset 0 0 0 3px var(--ok); }
+  /* "Question" = open question on the piece: hot pink ring + glow so it pops on the board */
+  .item[data-status="question"] .status-ring { box-shadow: inset 0 0 0 3px var(--question); }
+  .item[data-status="question"] .status-ring::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit;
+    box-shadow: inset 0 0 28px 2px rgba(255,45,149,.55);
+    animation: question-pulse 2.4s ease-in-out infinite;
+  }
+  .item[data-status="question"] {
+    box-shadow: 0 0 0 1px rgba(255,45,149,.7), 0 0 22px 4px rgba(255,45,149,.55), 0 2px 8px rgba(0,0,0,.3);
+  }
+  .item.selected[data-status="question"] {
+    box-shadow: 0 0 0 2px rgba(79,140,255,.4), 0 0 22px 4px rgba(255,45,149,.55), 0 2px 8px rgba(0,0,0,.4);
+  }
+  @keyframes question-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .item[data-status="question"] .status-ring::after { animation: none; opacity: .7; }
+  }
 
   .item .label {
     position: absolute; top: 6px; left: 6px;
@@ -1035,7 +1053,7 @@
     border: 1px solid rgba(255,255,255,.1); border-radius: 5px;
     padding: 6px 8px; font: inherit; margin-top: 4px;
   }
-  .status-row { display: flex; gap: 6px; margin-top: 4px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .status-chip {
     flex: 1; padding: 6px 4px; border-radius: 5px; font-size: 11px;
     text-align: center; cursor: pointer; border: 2px solid transparent;
@@ -1045,10 +1063,13 @@
   .status-chip[data-st="wip"]      { color: var(--wip); }
   .status-chip[data-st="review"]   { color: var(--review); }
   .status-chip[data-st="approved"] { color: var(--ok); }
+  .status-chip[data-st="question"] { color: var(--question); }
+  #inspector .status-chip[data-st="question"] { flex: 1 1 100%; }  /* own row: the 240px inspector fits 4 chips */
   .status-chip.active[data-st="sketch"]   { border-color: var(--sketch); }
   .status-chip.active[data-st="wip"]      { border-color: var(--wip); }
   .status-chip.active[data-st="review"]   { border-color: var(--review); }
   .status-chip.active[data-st="approved"] { border-color: var(--ok); }
+  .status-chip.active[data-st="question"] { border-color: var(--question); box-shadow: 0 0 10px rgba(255,45,149,.55); }
   #inspector .danger-btn {
     width: 100%; margin-top: 12px; padding: 8px;
     background: transparent; color: var(--danger);
@@ -1175,6 +1196,7 @@
   #hover-tip .tip-status.wip      { background: rgba(79,140,255,.2);  color: var(--wip); }
   #hover-tip .tip-status.review   { background: rgba(215,122,59,.2);  color: var(--review); }
   #hover-tip .tip-status.approved { background: rgba(106,196,106,.2); color: var(--ok); }
+  #hover-tip .tip-status.question { background: rgba(255,45,149,.22); color: var(--question); }
   #hover-tip .tip-meta { color: var(--muted); margin: 2px 0; }
   #hover-tip .tip-meta b { color: var(--text); font-weight: 500; }
   #hover-tip .tip-note {
@@ -1225,6 +1247,7 @@
     font-weight: 600; letter-spacing: .04em;
     background: rgba(255,255,255,.08);
   }
+  #version-modal .vm-header .vm-status[data-st="question"] { background: rgba(255,45,149,.25); color: var(--question); }
   #version-modal .vm-header-right {
     display: flex; align-items: center; gap: 4px;
     flex-shrink: 0;
@@ -1801,6 +1824,7 @@
       <div class="status-chip" data-st="wip">WIP</div>
       <div class="status-chip" data-st="review">Review</div>
       <div class="status-chip" data-st="approved">OK</div>
+      <div class="status-chip" data-st="question">Question</div>
     </div>
     <label>Artist
       <select id="insp-artist"
@@ -1901,6 +1925,7 @@
           <div class="status-chip" data-st="wip">WIP</div>
           <div class="status-chip" data-st="review">Review</div>
           <div class="status-chip" data-st="approved">OK</div>
+          <div class="status-chip" data-st="question">Question</div>
         </div>
       </div>
     </div>
@@ -4016,10 +4041,6 @@ viewport.addEventListener("wheel", e => {
 }, { passive: false });
 
 // ---------- Double-click ----------
-viewport.addEventListener("dblclick", e => {
-  if (e.target !== viewport && e.target !== world) return;
-  addNote(e.clientX, e.clientY, "");
-});
 function onDoubleClickItem(e, it, el) {
   e.stopPropagation();
   // Note text inside the notes panel — edit inline
@@ -4545,6 +4566,7 @@ function buildMenuGroups(sx, sy, item) {
         { label: "WIP",      action: () => { item.status = "wip";      render(); save(); }},
         { label: "Review",   action: () => { item.status = "review";   render(); save(); }},
         { label: "Approved", action: () => { item.status = "approved"; render(); save(); }},
+        { label: "Question", action: () => { item.status = "question"; render(); save(); }},
         { label: "(none)",   action: () => { item.status = null;       render(); save(); }},
       ],
     });
@@ -4646,6 +4668,7 @@ function openVersionModal(item) {
   const statusEl = document.getElementById("vm-status");
   if (item.status) {
     statusEl.textContent = item.status.toUpperCase();
+    statusEl.dataset.st = item.status;
     statusEl.style.display = "";
   } else { statusEl.style.display = "none"; }
   document.getElementById("vm-current-img").src = item.src;

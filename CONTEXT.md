@@ -1,6 +1,6 @@
 # CONTEXT — Release Board
 
-Last updated: 2026-09-14
+Last updated: 2026-09-18
 
 Snapshot of project state for the next Claude session. Read this first, then `assets/` for the original product spec, and `BACKOFFICE_SPEC.md` for the planned billing module.
 
@@ -128,8 +128,13 @@ supabase/
 ### Item types
 - `image` — sculpted image with label, status, info pills, alt version
 - `slot` — empty placeholder, same overlay structure as image
-- `note` — sticky yellow note, editable on double-click
+- `note` — sticky yellow note, editable on double-click. Created via **+ Note / `N` / right-click → + Note** only — double-click on empty canvas used to create one, removed 2026-09-18 (too many accidental notes).
 - `group` — tier frame (dashed border + label + watermark). Slots inside are NOT children — they don't move with the frame.
+
+### Statuses (image/slot, and alt)
+`item.status` ∈ `sketch` / `wip` / `review` / `approved` / `question` / null. Every surface reads the same key: `.status-ring` (colored inset border on the node), inspector chips, alt-modal chips, right-click → Status submenu, hover-tip badge, version-modal badge (`#vm-status[data-st]`).
+- **`question`** (added 2026-09-18) = there's an open question on the piece. Hot pink `--question: #ff2d95`: 3px ring + pulsing inset glow (`.status-ring::after`, opacity keyframes, disabled under `prefers-reduced-motion`) + outer glow on the `.item` itself (children are clipped by `.item { overflow: hidden }`, so the outer shadow has to live on the item; `.item.selected[data-status="question"]` merges it with the blue selection ring). In the 240px inspector the chip takes its own full row (`flex: 1 1 100%`).
+- The back-office only looks at `approved` (`default_included`), so the new status doesn't affect billing.
 
 ### Node structure (image/slot) — CURRENT
 ```
@@ -232,7 +237,7 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 
 ### Inspector (right panel)
 - Hidden in readonly mode
-- Fields: Name, Status chips, Artist, Base size, Due date, Brief link, Thread link, Note (textarea), Tier (dropdown), Has alt checkbox, Delete button
+- Fields: Name, Status chips (Sketch / WIP / Review / OK / Question), Artist, Base size, Due date, Brief link, Thread link, Note (textarea), Tier (dropdown), Has alt checkbox, Delete button
 
 ### Topbar (auto-hide)
 - Editable release name (input top-left, syncs to current board)
