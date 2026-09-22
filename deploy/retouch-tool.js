@@ -47,6 +47,8 @@
       warpPreset: "Warp preset", bend: "Bend",
       presets: { custom: "Custom", arc: "Arc", arcLower: "Arc lower", arcUpper: "Arc upper", arch: "Arch", bulge: "Bulge", flag: "Flag", wave: "Wave", fish: "Fish", rise: "Rise", fisheye: "Fisheye", inflate: "Inflate", squeeze: "Squeeze", twist: "Twist" },
       exportT: "Export", format: "Format", auto: "Auto", quality: "Quality", background: "Background",
+      more: "More", options: "Settings", pinch: "Pinch to zoom · two fingers to pan",
+      liquifyShort: "Liquify", transformShort: "Transform",
       hints: {
         warp: "Drag to push pixels. [ ] brush size · Shift+[ ] pressure · Space = pan",
         reconstruct: "Paint to bring pixels back to the original. Hold to keep restoring.",
@@ -88,6 +90,8 @@
       warpPreset: "Déformation prédéfinie", bend: "Courbure",
       presets: { custom: "Personnalisée", arc: "Arc", arcLower: "Arc inférieur", arcUpper: "Arc supérieur", arch: "Arche", bulge: "Renflement", flag: "Drapeau", wave: "Onde", fish: "Poisson", rise: "Ascension", fisheye: "Œil de poisson", inflate: "Gonflement", squeeze: "Compression", twist: "Torsion" },
       exportT: "Export", format: "Format", auto: "Auto", quality: "Qualité", background: "Fond",
+      more: "Plus", options: "Réglages", pinch: "Pincer pour zoomer · deux doigts pour déplacer",
+      liquifyShort: "Fluidité", transformShort: "Transf.",
       hints: {
         warp: "Glisser pour pousser les pixels. [ ] taille · Maj+[ ] pression · Espace = main",
         reconstruct: "Peindre pour ramener les pixels à l'original. Maintenir pour continuer.",
@@ -190,7 +194,77 @@
 .rt-status .rt-hint{flex:1;overflow:hidden;text-overflow:ellipsis}
 .rt-hidden{display:none!important}
 .rt-kbd{display:inline-block;padding:0 4px;border:1px solid var(--rt-border);border-radius:3px;font-size:10px;color:var(--rt-muted);margin-left:4px;line-height:1.5}
-@media (max-width:900px){.rt-root{grid-template-columns:54px 1fr 220px}.rt-title{display:none}}
+.rt-top{position:relative}
+.rt-topscroll{display:contents}
+.rt-more{display:flex;align-items:center;gap:8px}
+.rt-grip,.rt-only-mobile{display:none}
+.rt-toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;background:rgba(20,20,25,.92);
+  border:1px solid var(--rt-border);border-radius:8px;padding:7px 12px;font-size:12px;line-height:1.3;text-align:center;
+  color:var(--rt-text);opacity:0;transition:opacity .2s;pointer-events:none}
+.rt-toast.show{opacity:1}
+@media (max-width:1100px){.rt-root{grid-template-columns:62px 1fr 240px}.rt-title{max-width:150px}}
+
+/* ---------------- phone / small screen layout ---------------- */
+.rt-root.rt-mobile{
+  grid-template-rows:auto 1fr auto;grid-template-columns:100%;
+  grid-template-areas:"top" "stage" "left";
+  touch-action:none;padding-top:env(safe-area-inset-top,0px)}
+.rt-mobile .rt-top{height:48px;padding:0 8px;gap:6px}
+.rt-mobile .rt-title,.rt-mobile .rt-status,.rt-mobile .rt-zoomval,.rt-mobile .rt-no-mobile{display:none}
+.rt-mobile .rt-only-mobile{display:flex;align-items:center;justify-content:center}
+.rt-mobile .rt-tab{padding:6px 12px;font-size:12.5px}
+.rt-mobile .rt-btn{padding:7px 10px}
+.rt-mobile .rt-btn.icon{min-width:36px;padding:6px 8px}
+.rt-mobile .rt-btn.small{padding:6px 9px}
+.rt-mobile .rt-cancel{font-size:0;padding:6px 10px}
+.rt-mobile .rt-cancel::after{content:"✕";font-size:14px;line-height:1}
+.rt-mobile .rt-topscroll{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;
+  overflow-x:auto;overflow-y:hidden;touch-action:pan-x;scrollbar-width:none}
+.rt-mobile .rt-topscroll::-webkit-scrollbar{display:none}
+.rt-mobile .rt-top>.rt-btn,.rt-mobile .rt-topscroll>*{flex:0 0 auto}
+.rt-mobile .rt-spacer{flex:1 0 4px}
+.rt-mobile .rt-more{gap:6px}
+.rt-mobile .rt-tab{font-size:0;padding:6px 10px}
+.rt-mobile .rt-tab::after{content:attr(data-short);font-size:12.5px}
+/* too narrow for one row: mode tabs + close/save on top, history + view controls underneath */
+@media (max-width:559px){
+  .rt-mobile .rt-top{height:auto;flex-wrap:wrap;row-gap:5px;padding:5px 8px}
+  .rt-mobile .rt-tabs{order:1}
+  .rt-mobile .rt-spacer{order:2}
+  .rt-mobile .rt-only-mobile,.rt-mobile .rt-cancel,.rt-mobile .rt-btn.primary{order:3}
+  .rt-mobile .rt-topscroll{order:4;flex:1 0 100%;min-width:100%}
+}
+.rt-mobile .rt-left{grid-area:left;flex-direction:row;align-items:center;gap:4px;
+  border-right:none;border-top:1px solid var(--rt-border);
+  padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));
+  overflow-x:auto;overflow-y:hidden;touch-action:pan-x;scrollbar-width:none}
+.rt-mobile .rt-left::-webkit-scrollbar{display:none}
+.rt-mobile .rt-tool{flex:0 0 auto;width:58px;height:50px;font-size:9px}
+.rt-mobile .rt-tool svg{width:22px;height:22px}
+.rt-mobile .rt-tool span{max-width:56px}
+.rt-mobile .rt-tool-sep{width:1px;height:34px;margin:0 5px}
+.rt-mobile .rt-stage.brush{cursor:default}
+.rt-mobile .rt-right{grid-area:stage;align-self:end;justify-self:stretch;z-index:8;
+  max-height:min(62%,420px);border-left:none;border-top:1px solid var(--rt-border);
+  border-radius:12px 12px 0 0;box-shadow:0 -12px 30px rgba(0,0,0,.5);
+  padding:12px 14px calc(22px + env(safe-area-inset-bottom,0px));touch-action:pan-y;
+  transform:translateY(105%);visibility:hidden;pointer-events:none;
+  transition:transform .22s ease,visibility 0s linear .22s}
+.rt-mobile .rt-right.open{transform:none;visibility:visible;pointer-events:auto;transition:transform .22s ease}
+.rt-mobile .rt-grip{display:block;position:sticky;top:-12px;z-index:3;
+  margin:-12px -14px 4px;padding:9px 0 7px;background:var(--rt-panel);border-radius:12px 12px 0 0;cursor:pointer}
+.rt-mobile .rt-grip::after{content:"";display:block;width:42px;height:4px;border-radius:2px;background:var(--rt-panel2);margin:0 auto}
+/* landscape phone: the strip gives its labels back to the canvas */
+@media (max-height:460px){
+  .rt-mobile .rt-tool{width:46px;height:40px}
+  .rt-mobile .rt-tool span{display:none}
+  .rt-mobile .rt-left{padding-top:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom,0px))}
+  .rt-mobile .rt-right{max-height:82%}
+}
+.rt-mobile .rt-row{min-height:30px}
+.rt-mobile .rt-row label{flex:0 0 78px}
+.rt-mobile .rt-row input[type=range]{height:26px}
+.rt-mobile .rt-check{padding:3px 0}
 `;
 
   // ---------------------------------------------------------------- small helpers
@@ -846,6 +920,11 @@ void main(){
       this.sel = null;                   // marquee selection rect (image px) or null
       this.pointer = null;               // last pointer position in stage px
       this.drag = null;                  // current interaction
+      this.touches = new Map();          // live touch points (stage px), for pinch zoom / 2-finger pan
+      this.pinch = null;
+      this.mq = window.matchMedia("(max-width: 760px), (max-height: 460px)");
+      this.mobile = false;
+      this.touchUI = this.mq.matches || window.matchMedia("(pointer: coarse)").matches;
       this.space = false; this.alt = false;
       this.ready = false; this.closed = false;
       this._raf = 0;
@@ -864,29 +943,40 @@ void main(){
       if (o.theme) for (const k in o.theme) root.style.setProperty("--rt-" + k, o.theme[k]);
 
       // top bar
-      const top = el("div", "rt-top");
+      const top = this.top = el("div", "rt-top");
+      // Everything but the pinned actions lives in a group that can scroll sideways on a phone.
       top.appendChild(el("div", "rt-title", escapeHtml(o.title || t.title)));
+      const bar = this.topScroll = el("div", "rt-topscroll");
       const tabs = el("div", "rt-tabs");
       this.tabEls = {};
       for (const m of ["liquify", "transform"]) {
         const tab = el("div", "rt-tab" + (this.mode === m ? " active" : ""), t[m]);
+        tab.dataset.short = t[m + "Short"] || t[m];
         tab.addEventListener("click", () => this.setMode(m));
         tabs.appendChild(tab); this.tabEls[m] = tab;
       }
       top.appendChild(tabs);
-      top.appendChild(el("div", "rt-spacer"));
-      this.btnUndo = this.button(top, "↶", t.undo + " (Ctrl+Z)", () => this.undo(), "icon");
-      this.btnRedo = this.button(top, "↷", t.redo + " (Ctrl+Y)", () => this.redo(), "icon");
+      top.appendChild(el("div", "rt-spacer rt-no-mobile"));   // desktop: pushes the controls right
+      this.btnUndo = this.button(bar, "↶", t.undo + " (Ctrl+Z)", () => this.undo(), "icon");
+      this.btnRedo = this.button(bar, "↷", t.redo + " (Ctrl+Y)", () => this.redo(), "icon");
       const zoom = el("div", "rt-zoom");
-      this.button(zoom, "−", "Zoom −", () => this.zoomBy(1 / 1.25), "icon");
+      this.button(zoom, "−", "Zoom −", () => this.zoomBy(1 / 1.25), "icon rt-no-mobile");
       this.zoomVal = el("span", "rt-zoomval", "100%"); zoom.appendChild(this.zoomVal);
-      this.button(zoom, "+", "Zoom +", () => this.zoomBy(1.25), "icon");
+      this.button(zoom, "+", "Zoom +", () => this.zoomBy(1.25), "icon rt-no-mobile");
       this.button(zoom, t.fit, "Ctrl+0", () => this.fit(), "small");
-      this.button(zoom, t.zoom100, "Ctrl+1", () => this.zoomTo(1), "small");
-      top.appendChild(zoom);
-      this.btnOriginal = this.button(top, t.original, "\\", () => this.toggleOriginal(), "small toggle");
-      this.button(top, t.reset, "", () => this.resetAll(), "small danger");
-      this.button(top, t.cancel, "Esc", () => this.cancel(), "small");
+      this.button(zoom, t.zoom100, "Ctrl+1", () => this.zoomTo(1), "small rt-no-mobile");
+      bar.appendChild(zoom);
+      // Original / Reset: inline in the bar on desktop, moved into the sheet on a phone
+      const more = this.more = el("div", "rt-more");
+      this.btnOriginal = this.button(more, t.original, "\\", () => this.toggleOriginal(), "small toggle");
+      this.button(more, t.reset, "", () => this.resetAll(), "small danger");
+      bar.appendChild(more);
+      top.appendChild(bar);
+      top.appendChild(el("div", "rt-spacer rt-only-mobile"));  // phone: pushes the pinned actions right
+      // pinned (never scroll away)
+      this.btnApplyTop = this.button(top, "✓", t.apply, () => this.commitLive(), "icon primary rt-only-mobile rt-hidden");
+      this.btnSheet = this.button(top, "⚙", t.options, () => this.toggleSheet(), "icon rt-only-mobile");
+      this.button(top, t.cancel, "Esc", () => this.cancel(), "small rt-cancel");
       this.btnSave = this.button(top, t.save, "Ctrl+Enter", () => this.save(), "primary");
       root.appendChild(top);
 
@@ -899,10 +989,14 @@ void main(){
       this.gl = el("canvas"); this.ov = el("canvas");
       stage.appendChild(this.gl); stage.appendChild(this.ov);
       this.msg = el("div", "rt-msg rt-hidden"); stage.appendChild(this.msg);
+      this.toastEl = el("div", "rt-toast"); stage.appendChild(this.toastEl);
       root.appendChild(stage);
 
       // right panel
       this.right = el("div", "rt-right");
+      this.grip = el("div", "rt-grip");
+      this.grip.addEventListener("click", () => this.toggleSheet());
+      this.right.appendChild(this.grip);
       root.appendChild(this.right);
       this.buildLiquifyPanel();
       this.buildTransformPanel();
@@ -915,8 +1009,50 @@ void main(){
       root.appendChild(status);
 
       document.body.appendChild(root);
+      // Keep the host page from scrolling / rubber-banding behind the editor, and make sure a phone
+      // reports its real width (pages with no viewport meta would otherwise lay out at ~980px).
+      this._prevOverflow = document.body.style.overflow;
+      this._prevOverscroll = document.documentElement.style.overscrollBehavior;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overscrollBehavior = "none";
+      if (!document.querySelector('meta[name="viewport"]')) {
+        this.meta = el("meta");
+        this.meta.name = "viewport";
+        this.meta.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+        document.head.appendChild(this.meta);
+      }
+      this._onMQ = () => this.applyLayout();
+      this.mq.addEventListener ? this.mq.addEventListener("change", this._onMQ) : this.mq.addListener(this._onMQ);
+      this.applyLayout();
       this.buildTools();
       this.syncPanels();
+    }
+    // phone layout: tools become a bottom strip, the right panel a bottom sheet
+    applyLayout() {
+      const m = this.mq.matches;
+      this.mobile = m;
+      this.touchUI = m || window.matchMedia("(pointer: coarse)").matches;
+      this.root.classList.toggle("rt-mobile", m);
+      if (!m) this.closeSheet();
+      if (this.ready) { this.resize(); this.syncPanels(); }
+    }
+    toggleSheet() {
+      const open = !this.right.classList.contains("open");
+      this.right.classList.toggle("open", open);
+      this.btnSheet.classList.toggle("on", open);
+    }
+    closeSheet() {
+      if (!this.right.classList.contains("open")) return false;
+      this.right.classList.remove("open");
+      this.btnSheet.classList.remove("on");
+      return true;
+    }
+    toast(text) {
+      if (!text) return;
+      this.toastEl.textContent = text;
+      this.toastEl.classList.add("show");
+      clearTimeout(this._toastT);
+      this._toastT = setTimeout(() => this.toastEl.classList.remove("show"), 2800);
     }
     button(parent, label, title, onClick, cls = "") {
       const b = el("button", "rt-btn " + cls, label);
@@ -1057,6 +1193,7 @@ void main(){
       for (const m in this.tabEls) this.tabEls[m].classList.toggle("active", m === this.mode);
       this.syncExport();
       this.syncHistoryButtons();
+      this.btnApplyTop.classList.toggle("rt-hidden", liq);
       if (!liq) this.syncTransformReadout();
       this.setHint();
       this.stage.classList.toggle("brush", liq && this.tool !== "hand");
@@ -1085,6 +1222,7 @@ void main(){
       set(this.nX, r.x); set(this.nY, r.y); set(this.nW, r.w); set(this.nH, r.h); set(this.nA, r.angle);
       this.selInfo.textContent = this.sel ? `${Math.round(this.sel.w)} × ${Math.round(this.sel.h)} px @ ${Math.round(this.sel.x)}, ${Math.round(this.sel.y)}` : this.t.selectAll;
       this.btnApply.disabled = this.xf.isIdentity();
+      this.btnApplyTop.classList.toggle("rt-hidden", this.mode !== "transform" || this.xf.isIdentity());
       if (this.selPreset.value !== this.xf.preset) this.selPreset.value = this.xf.preset;
     }
     setHint(text) {
@@ -1178,6 +1316,7 @@ void main(){
       this.mode = m;
       this.tool = this.lastTool[m] || (m === "liquify" ? "warp" : "move");
       this.buildTools(); this.syncPanels(); this.requestRender();
+      if (this.mobile) this.toast(this.t.hints[this.tool]);
     },
     setTool(name) {
       if (name !== "hand" && !(this.mode === "liquify" ? LIQUIFY_TOOLS : TRANSFORM_TOOLS).includes(name)) return;
@@ -1186,6 +1325,7 @@ void main(){
       this.tool = name;
       for (const k in this.toolEls) this.toolEls[k].classList.toggle("active", k === name);
       this.syncPanels(); this.requestRender();
+      if (this.mobile) this.toast(this.t.hints[name]);
     },
     setXfMode(m) {
       this.xfMode = m;
@@ -1204,7 +1344,8 @@ void main(){
     toScreen(x, y) { return [this.view.ox + x * this.view.zoom, this.view.oy + y * this.view.zoom]; },
     fit() {
       if (!this.ready) return;
-      const z = Math.min((this.sw - 48) / this.W, (this.sh - 48) / this.H, 4);
+      const pad = this.mobile ? 16 : 48;
+      const z = Math.min((this.sw - pad) / this.W, (this.sh - pad) / this.H, 4);
       this.view.zoom = z;
       this.view.ox = (this.sw - this.W * z) / 2; this.view.oy = (this.sh - this.H * z) / 2;
       this.setStatus(); this.requestRender();
@@ -1239,7 +1380,9 @@ void main(){
       block("paste", e => e.stopPropagation(), true);
       block("copy", e => e.stopPropagation(), true);
       block("cut", e => e.stopPropagation(), true);
-      block("blur", () => { this.space = this.alt = false; this.endDrag(); this.syncPanels(); });
+      block("blur", () => { this.space = this.alt = false; this.touches.clear(); this.pinch = null; this.endDrag(); this.syncPanels(); });
+      block("resize", () => this.applyLayout());
+      block("orientationchange", () => setTimeout(() => this.applyLayout(), 250));
       this.sBend.inp.addEventListener("change", () => { const b = this._bendBefore; this._bendBefore = null; if (b) this.pushXfHistory(b); });
     },
     unbindEvents() {
@@ -1260,11 +1403,43 @@ void main(){
       const f = Math.exp(-clamp(e.deltaY, -120, 120) * 0.0022);
       this.zoomAt(p[0], p[1], f);
     },
+    startPinch() {
+      const pts = [...this.touches.values()];
+      this.pinch = {
+        d0: Math.max(1, Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1])),
+        mid0: [(pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2],
+        view0: { ...this.view },
+      };
+    },
+    updatePinch() {
+      const pts = [...this.touches.values()];
+      if (pts.length < 2) return;
+      const p = this.pinch;
+      const d = Math.max(1, Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]));
+      const mid = [(pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2];
+      const nz = clamp(p.view0.zoom * (d / p.d0), 0.02, 64), k = nz / p.view0.zoom;
+      this.view.zoom = nz;
+      this.view.ox = mid[0] - (p.mid0[0] - p.view0.ox) * k;
+      this.view.oy = mid[1] - (p.mid0[1] - p.view0.oy) * k;
+      this.setStatus();
+    },
     onPointerDown(e) {
       if (!this.ready) return;
       this.root.focus();
       const p = this.stagePos(e), ip = this.toImage(p[0], p[1]);
       this.pointer = p;
+      if (this.mobile && this.closeSheet()) { this.pointer = null; return; }   // first tap dismisses the sheet
+      if (e.pointerType === "touch") {
+        this.touches.set(e.pointerId, p);
+        if (this.touches.size >= 2) {           // second finger = pinch/pan, drop whatever was in progress
+          this.cancelDrag();
+          this.startPinch();
+          if (this.mobile) this.toast(this.t.pinch);
+          this.requestRender();
+          return;
+        }
+      }
+      if (this.pinch) return;
       if (this.drag) return;
       if (e.button === 1 || this.space || this.tool === "hand" || (e.button === 0 && this.tool !== "marquee" && this.mode === "transform" && this.hitTransform(p) == null && !this.pointInQuad(ip))) {
         if (e.button === 2) return;
@@ -1288,6 +1463,8 @@ void main(){
       if (!this.ready) return;
       const p = this.stagePos(e), ip = this.toImage(p[0], p[1]);
       this.pointer = p;
+      if (e.pointerType === "touch" && this.touches.has(e.pointerId)) this.touches.set(e.pointerId, p);
+      if (this.pinch) { this.updatePinch(); this.requestRender(); return; }
       const d = this.drag;
       if (!d) { this.updateCursor(p, ip); this.requestRender(); return; }
       if (d.id !== e.pointerId) return;
@@ -1309,8 +1486,13 @@ void main(){
       this.requestRender();
     },
     onPointerUp(e) {
+      if (e.pointerType === "touch") {
+        this.touches.delete(e.pointerId);
+        if (this.pinch && this.touches.size < 2) { this.pinch = null; this.setStatus(); }
+        if (this.touches.size === 0) this.pointer = null;     // no hover on touch: drop the brush ring
+      }
       const d = this.drag;
-      if (!d || d.id !== e.pointerId) return;
+      if (!d || d.id !== e.pointerId) { this.requestRender(); return; }
       try { this.stage.releasePointerCapture(e.pointerId); } catch (_) {}
       this.endDrag();
       this.requestRender();
@@ -1443,7 +1625,7 @@ void main(){
     },
     // screen-space hit test → { kind, idx } | null
     hitTransform(p) {
-      const xf = this.xf, HR = 7;
+      const xf = this.xf, HR = this.touchUI ? 22 : 7;   // a fingertip needs a much bigger target
       const near = (q, r) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= r;
       const pv = this.toScreen(...xf.pivotDest());
       if (xf.warp && this.xfMode === "warp") {
@@ -1457,7 +1639,7 @@ void main(){
       if (near(pv, HR)) return { kind: "pivot" };
       const ip = this.toImage(p[0], p[1]);
       if (this.pointInQuad(ip)) return { kind: "inside" };
-      for (let i = 0; i < 4; i++) if (near(cs[i], 36)) return { kind: "rotate", idx: i };
+      for (let i = 0; i < 4; i++) if (near(cs[i], this.touchUI ? 62 : 36)) return { kind: "rotate", idx: i };
       return null;
     },
     updateCursor(p, ip) {
@@ -1989,7 +2171,12 @@ void main(){
       this.closed = true;
       this.endDrag();
       cancelAnimationFrame(this._raf); cancelAnimationFrame(this._raf2);
+      clearTimeout(this._toastT);
       this.unbindEvents();
+      this.mq.removeEventListener ? this.mq.removeEventListener("change", this._onMQ) : this.mq.removeListener(this._onMQ);
+      document.body.style.overflow = this._prevOverflow || "";
+      document.documentElement.style.overscrollBehavior = this._prevOverscroll || "";
+      if (this.meta) this.meta.remove();
       if (this.ro) this.ro.disconnect();
       if (this.r) {
         try {

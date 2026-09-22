@@ -206,6 +206,7 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 - `openRetouch(item, target)` (target = "main" | "alt") → `RetouchTool.open(...)` from `retouch-tool.js` (standalone module, WebGL2, documented in `RETOUCH_TOOL.md`)
 - On save: previous image archived (`archiveCurrentImage` / altNode.archive), result uploaded to Storage when possible, `render(); save();`, open modal refreshed
 - While the tool is open it swallows all keyboard / mouse / wheel / drop / paste events (capture phase) so board shortcuts never fire
+- Phone/tablet layout built in (bottom tool strip + bottom-sheet panel + pinch zoom / 2-finger pan); the board itself is still desktop-only
 
 ### AI name generation (NEW)
 - ⚙ Settings modal (admin/editor/reader, accessible via topbar user menu):

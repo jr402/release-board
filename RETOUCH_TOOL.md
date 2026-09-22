@@ -71,6 +71,25 @@ Sélection rectangulaire optionnelle (outil `M`, clic = toute l'image) puis tran
 - Zone libérée : transparente (comme Photoshop) ou garder l'original
 - `Entrée` = appliquer la transformation ; le canevas garde la taille de l'image, ce qui dépasse est coupé
 
+### Vue téléphone / tablette
+
+La mise en page bascule toute seule sous 760 px de large (ou 460 px de haut, donc aussi en paysage) et
+suit la rotation :
+
+- barre du haut compacte : onglets + ⚙ (panneau) + ✕ + Enregistrer ; sous 560 px, l'annuler / rétablir /
+  Ajuster / Original / Réinitialiser passent sur une 2ᵉ ligne — rien n'est caché
+- les outils deviennent une barre horizontale défilante en bas (icônes seules en paysage)
+- le panneau de réglages devient une **feuille** qui monte du bas (bouton ⚙, ou tape sur l'image pour la refermer)
+- en mode Transformation, un bouton **✓** apparaît en haut dès qu'il y a une transformation à appliquer
+  (remplace la touche Entrée)
+- l'astuce de l'outil choisi s'affiche 3 s en bas de l'image (la barre d'état est masquée)
+
+Gestes : **1 doigt** = l'outil courant (peindre, déplacer une poignée), **2 doigts** = zoom + déplacement
+simultanés (un 2ᵉ doigt posé en cours de geste annule proprement le coup de pinceau commencé). Les poignées
+de transformation ont une zone tactile de 22 px, la rotation au-delà. Pendant que l'outil est ouvert, la page
+hôte ne peut plus défiler ni zoomer ; si elle n'a pas de balise `<meta name="viewport">`, l'outil en ajoute
+une le temps de la session (et la retire en se fermant) pour que le téléphone donne sa vraie largeur.
+
 ### Général
 
 `Ctrl+Z` / `Ctrl+Y` annuler-rétablir (60 étapes, y compris les applications), `Ctrl+0` ajuster, `Ctrl+1` 100 %,
