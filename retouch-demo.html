@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>RetouchTool — démo</title>
+<style>
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1b1e; color: #e7e7ea; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { color: #8b8d95; margin: 0 0 18px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  button, label.btn { background: #34353b; border: 1px solid rgba(255,255,255,.1); color: #e7e7ea; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button.primary { background: #4f8cff; border-color: transparent; color: #fff; font-weight: 600; }
+  button:hover, label.btn:hover { filter: brightness(1.15); }
+  #drop { border: 2px dashed rgba(255,255,255,.15); border-radius: 10px; padding: 26px; text-align: center; color: #8b8d95; margin-bottom: 18px; }
+  #drop.over { border-color: #4f8cff; color: #e7e7ea; }
+  .imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .imgs figure { margin: 0; background: #2a2b30; border-radius: 8px; padding: 10px; }
+  .imgs figcaption { font-size: 12px; color: #8b8d95; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .imgs img { width: 100%; display: block; border-radius: 4px; background: repeating-conic-gradient(#3a3b40 0 25%, #2f3035 0 50%) 0 0 / 16px 16px; }
+  code { background: #2a2b30; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  pre { background: #2a2b30; padding: 12px 14px; border-radius: 8px; overflow: auto; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>RetouchTool — Liquify + Transform</h1>
+  <p>Ouvre une image, retouche-la, puis <b>Enregistrer</b> : le résultat s'affiche à droite. Le module est un seul fichier : <code>retouch-tool.js</code>.</p>
+
+  <div class="row">
+    <button class="primary" id="btn-sample">Image d'exemple</button>
+    <label class="btn">Ouvrir un fichier… <input type="file" id="file" accept="image/*" hidden></label>
+    <button id="btn-reopen" disabled>Retoucher le résultat</button>
+    <span style="color:#8b8d95">ou Ctrl+V une image</span>
+  </div>
+  <div id="drop">Dépose une image ici</div>
+
+  <div class="imgs">
+    <figure><figcaption><span>Source</span><span id="src-info"></span></figcaption><img id="src" alt=""></figure>
+    <figure><figcaption><span>Résultat</span><span><a id="dl" href="#" download="retouche.png" style="color:#4f8cff;display:none">Télécharger</a></span></figcaption><img id="out" alt=""></figure>
+  </div>
+
+  <h3>Intégration</h3>
+<pre>&lt;script src="retouch-tool.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+RetouchTool.open({
+  src: imageUrlOuDataUrl,          // URL, data URL, &lt;img&gt;, &lt;canvas&gt;, File / Blob
+  title: "Nom de l'image",
+  format: "auto",                  // "image/png" | "image/jpeg" | "image/webp"
+  lang: "fr",
+  onSave(result) {                 // { dataUrl, blob, mime, width, height, canvas }
+    monImage.src = result.dataUrl; // peut renvoyer une Promise (upload…) : l'outil attend
+  },
+});
+&lt;/script&gt;</pre>
+</main>
+
+<script src="retouch-tool.js"></script>
+<script>
+  let currentSrc = null;
+  const srcImg = document.getElementById("src"), outImg = document.getElementById("out"), dl = document.getElementById("dl");
+
+  function sampleImage() {
+    const c = document.createElement("canvas"); c.width = 900; c.height = 700;
+    const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, 900, 700); g.addColorStop(0, "#f6d365"); g.addColorStop(1, "#fda085");
+    x.fillStyle = g; x.fillRect(0, 0, 900, 700);
+    x.strokeStyle = "rgba(0,0,0,.18)"; x.lineWidth = 1;
+    for (let i = 0; i <= 900; i += 50) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, 700); x.stroke(); }
+    for (let j = 0; j <= 700; j += 50) { x.beginPath(); x.moveTo(0, j); x.lineTo(900, j); x.stroke(); }
+    // a "face"
+    x.fillStyle = "#ffe0bd"; x.beginPath(); x.ellipse(450, 350, 190, 230, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = "#3b2f2f"; x.beginPath(); x.ellipse(380, 300, 28, 34, 0, 0, Math.PI * 2); x.ellipse(520, 300, 28, 34, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = "#fff"; x.beginPath(); x.arc(390, 292, 8, 0, Math.PI * 2); x.arc(530, 292, 8, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = "#a0522d"; x.lineWidth = 8; x.beginPath(); x.arc(450, 400, 90, 0.15 * Math.PI, 0.85 * Math.PI); x.stroke();
+    x.fillStyle = "#e8a87c"; x.beginPath(); x.moveTo(450, 320); x.lineTo(425, 390); x.lineTo(475, 390); x.closePath(); x.fill();
+    x.fillStyle = "#2a2b30"; x.font = "bold 44px sans-serif"; x.textAlign = "center"; x.fillText("RetouchTool", 450, 640);
+    x.font = "20px sans-serif"; x.fillText("liquify · transform · warp", 450, 672);
+    return c.toDataURL("image/png");
+  }
+
+  function open(src, title) {
+    currentSrc = src;
+    srcImg.src = typeof src === "string" ? src : URL.createObjectURL(src);
+    srcImg.onload = () => { document.getElementById("src-info").textContent = srcImg.naturalWidth + " × " + srcImg.naturalHeight; };
+    RetouchTool.open({
+      src, title: title || "Démo", lang: "fr",
+      onSave(res) {
+        outImg.src = res.dataUrl;
+        dl.href = res.dataUrl; dl.download = "retouche" + (res.mime === "image/jpeg" ? ".jpg" : res.mime === "image/webp" ? ".webp" : ".png"); dl.style.display = "";
+        document.getElementById("btn-reopen").disabled = false;
+        window.lastResult = res;
+      },
+    });
+  }
+  window.openDemo = open;
+
+  document.getElementById("btn-sample").onclick = () => open(sampleImage(), "Image d'exemple");
+  document.getElementById("file").onchange = e => { const f = e.target.files[0]; if (f) open(f, f.name); e.target.value = ""; };
+  document.getElementById("btn-reopen").onclick = () => open(outImg.src, "Résultat");
+  const drop = document.getElementById("drop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = [...e.dataTransfer.files].find(f => f.type.startsWith("image/")); if (f) open(f, f.name); });
+  window.addEventListener("paste", e => { const it = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/")); if (it) open(it.getAsFile(), "Presse-papier"); });
+</script>
+</body>
+</html>

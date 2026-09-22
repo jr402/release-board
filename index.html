@@ -397,6 +397,21 @@
   }
   .namegen-btn:hover { background: #9b59b6; color: white; border-color: #9b59b6; }
 
+  /* Retouch (Liquify / Transform) button — opens retouch-tool.js on the node image */
+  .retouch-btn {
+    width: 26px; height: 22px;
+    border-radius: 4px;
+    background: rgba(20,20,25,.85);
+    border: 1px solid rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+    transition: background .12s;
+  }
+  .retouch-btn:hover { background: #2ab3a6; color: white; border-color: #2ab3a6; }
+  body.readonly .retouch-btn, body.readonly #vm-retouch-btn, body.readonly #alt-retouch-btn { display: none; }
+
   /* Name-gen popup (similar to note popup) */
   #namegen-popup {
     position: fixed; z-index: 700;
@@ -1800,6 +1815,7 @@
     <div class="alt-header">
       <h2><span class="alt-tag">ALT</span><span id="alt-parent-name">Alt version</span></h2>
       <div class="alt-header-right">
+        <button id="alt-retouch-btn" class="alt-header-btn" title="Retouch (Liquify / Transform)">🪄</button>
         <button id="alt-note-btn" class="alt-header-btn" title="Note">📝</button>
         <button id="alt-close" title="Close (Esc)">×</button>
       </div>
@@ -1832,6 +1848,7 @@
         <span class="vm-status" id="vm-status"></span>
       </div>
       <div class="vm-header-right">
+        <button id="vm-retouch-btn" class="vm-header-btn" title="Retouch (Liquify / Transform)">🪄</button>
         <button id="vm-note-btn" class="vm-header-btn" title="Note">📝</button>
         <button id="vm-close" title="Close (Esc)">×</button>
       </div>
@@ -1849,6 +1866,7 @@
 
 <input type="file" id="file-picker" accept="image/*" multiple style="display:none" />
 
+<script src="retouch-tool.js"></script>
 <script>
 // ---------- Supabase config ----------
 // Fill these from your Supabase project (Settings → API).
@@ -2905,6 +2923,20 @@ function buildSideTools(item) {
     openNameGenPanel(item, genBtn);
   });
   wrap.appendChild(genBtn);
+
+  // 🪄 Retouch button — Liquify / Transform the node image (editors only, image nodes with a picture)
+  if (item.type === "image" && item.src) {
+    const rtBtn = document.createElement("div");
+    rtBtn.className = "retouch-btn";
+    rtBtn.textContent = "🪄";
+    rtBtn.title = "Retouch (Liquify / Transform)";
+    rtBtn.addEventListener("mousedown", e => e.stopPropagation());
+    rtBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      openRetouch(item);
+    });
+    wrap.appendChild(rtBtn);
+  }
 
   return wrap;
 }
@@ -4435,6 +4467,54 @@ document.addEventListener("mousedown", e => {
 }, true);
 window.addEventListener("blur", hideContextMenu);
 window.addEventListener("wheel", hideContextMenu);
+
+// ---------- Retouch (Liquify / Transform) ----------
+// Opens retouch-tool.js on the node image (or its alt). On save: the previous picture is
+// archived (like a drop / paste), the result is uploaded to Storage when possible, and the
+// board re-renders. `target` = "main" | "alt".
+function openRetouch(item, target = "main") {
+  if (!item || !canEdit()) return;
+  const node = target === "alt" ? item.altNode : item;
+  if (!node || !node.src) return;
+  if (typeof RetouchTool === "undefined") { alert("retouch-tool.js is missing next to index.html"); return; }
+  RetouchTool.open({
+    src: node.src,
+    title: (item.label || "Image") + (target === "alt" ? " — ALT" : ""),
+    lang: "en",
+    zIndex: 5000,
+    async onSave(res) {
+      let src = res.dataUrl;
+      try {
+        if (USE_SUPABASE && sb && currentUser && canEdit()) src = await uploadImageToStorage(res.dataUrl);
+      } catch (e) {
+        console.warn("Upload to Storage failed, keeping data URL:", e);
+      }
+      const it = getItem(item.id);
+      if (!it) return;
+      if (target === "alt") {
+        if (!it.altNode) return;
+        if (!it.altNode.archive) it.altNode.archive = [];
+        it.altNode.archive.push({ src: it.altNode.src, uploadedAt: Date.now(), status: it.altNode.status });
+        it.altNode.src = src;
+        render(); save();
+        if (altModalItemId === it.id) renderAltNode();
+      } else {
+        archiveCurrentImage(it);
+        it.src = src;
+        render(); save();
+        if (versionModalItemId === it.id) openVersionModal(it);
+      }
+    },
+  });
+}
+document.getElementById("vm-retouch-btn").addEventListener("click", () => {
+  const item = getItem(versionModalItemId);
+  if (item) openRetouch(item);
+});
+document.getElementById("alt-retouch-btn").addEventListener("click", () => {
+  const item = getItem(altModalItemId);
+  if (item) openRetouch(item, "alt");
+});
 
 // ---------- Archive / Versions ----------
 function archiveCurrentImage(item) {

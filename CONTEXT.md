@@ -86,7 +86,11 @@ Without this function deployed + secrets set, the ✨ name-gen feature shows a c
 
 ```
 index.html              ← the whole app (single source of truth)
+retouch-tool.js         ← standalone Liquify / Transform image editor (see RETOUCH_TOOL.md) — loaded by index.html
+retouch-demo.html       ← demo / test page for retouch-tool.js (not deployed)
+RETOUCH_TOOL.md         ← API + shortcuts of the retouch tool (reusable in other HTML projects)
 deploy/index.html       ← copy ready for Netlify Drop (rsync after every change)
+deploy/retouch-tool.js  ← must be copied along with index.html
 netlify.toml            ← publish="." config
 .gitignore              ← excludes .env*, .claude/, node_modules/, .netlify/
 .env.local              ← Supabase keys + DB password + ADMIN password + AI keys reference (gitignored)
@@ -196,6 +200,12 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
   - **Right** (`#vm-alts-list`, 124px): the alt thumbnail (or "no alt")
 - Header has: title, status badge, 📝 note button, × close
 - Restore button on each archived version → makes it current (archives the previous current)
+
+### Retouch — Liquify / Transform (NEW)
+- 🪄 button in node side-tools (image nodes with a picture, editors only), in the version modal header (`#vm-retouch-btn`) and in the alt modal header (`#alt-retouch-btn`)
+- `openRetouch(item, target)` (target = "main" | "alt") → `RetouchTool.open(...)` from `retouch-tool.js` (standalone module, WebGL2, documented in `RETOUCH_TOOL.md`)
+- On save: previous image archived (`archiveCurrentImage` / altNode.archive), result uploaded to Storage when possible, `render(); save();`, open modal refreshed
+- While the tool is open it swallows all keyboard / mouse / wheel / drop / paste events (capture phase) so board shortcuts never fire
 
 ### AI name generation (NEW)
 - ⚙ Settings modal (admin/editor/reader, accessible via topbar user menu):
