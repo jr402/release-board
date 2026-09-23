@@ -16,7 +16,7 @@ RetouchTool.open({
   format: "auto",                // "auto" (= format source) | "image/png" | "image/jpeg" | "image/webp"
   quality: 0.92,                 // JPEG / WebP
   background: "#ffffff",         // fond utilisé pour le JPEG (pas d'alpha)
-  lang: "fr",                    // "fr" | "en" (défaut : langue du navigateur)
+  lang: "en",                    // "en" (défaut) | "fr" — l'interface de l'outil
   zIndex: 100000,                // au-dessus de tout le reste
   maxSize: 8192,                 // l'image est réduite si elle dépasse (limite GPU)
   theme: { accent: "#4f8cff" },  // surcharge des variables CSS --rt-* (bg, panel, panel2, text, muted, accent, danger)
@@ -35,6 +35,8 @@ Une URL d'un autre domaine doit être servie avec CORS (`Access-Control-Allow-Or
 l'image → message « Impossible de charger l'image ». Les data URL et les fichiers locaux passent toujours.
 
 ## Ce que fait l'outil
+
+L'interface de l'outil est **en anglais** par défaut (`lang: "fr"` pour la version française).
 
 Pendant que l'éditeur est ouvert, tous les raccourcis clavier / souris / molette / drop / paste de la page
 hôte sont bloqués (écouteurs en phase de capture) : aucun conflit avec les raccourcis de l'app.
@@ -55,7 +57,8 @@ Filet de déformation (jusqu'à ~320 000 sommets, bilinéaire) rendu en WebGL �
 | Main | H (ou Espace) | déplacer la vue |
 
 Pinceau : taille (`[` `]`), pression (`Maj+[` `]`), vitesse (outils continus), densité (dureté du bord),
-pression du stylet. Affichage : filet, masque, bouton Original (`\`), Tout restaurer, Tout libérer.
+pression du stylet. **Clic droit sur l'image** = les mêmes réglages en popup sous le curseur (comme Photoshop) ;
+popup et panneau restent synchronisés. Affichage : filet, masque, bouton Original (`\`), Tout restaurer, Tout libérer.
 
 ### Onglet Transformation
 
@@ -66,7 +69,9 @@ Sélection rectangulaire optionnelle (outil `M`, clic = toute l'image) puis tran
 - hors des coins = rotation (Maj = pas de 15°), point de pivot déplaçable
 - Ctrl+coin = torsion (distort), Ctrl+côté = inclinaison (skew), Ctrl+Alt+Maj+coin = perspective
 - menu Mode pour forcer un mode : Échelle / Rotation / Inclinaison / Torsion / Perspective / Déformation (warp)
-- Déformation = grille de Bézier 4 × 4 (16 points) + presets (arc, renflement, drapeau, onde, œil de poisson, torsion…) et curseur Courbure
+- Déformation = grille de Bézier 4 × 4 + presets (arc, renflement, drapeau, onde, œil de poisson, torsion…) et curseur Courbure.
+  Les 16 poignées sont posées **sur le filet, aux croisements des lignes de tiers** (pas sur les points de contrôle
+  Bézier, qui flottent hors de la surface) : celle qu'on attrape suit le curseur exactement
 - boutons Symétrie H/V, 90°, 180°, champs numériques X / Y / L % / H % / Angle
 - Zone libérée : transparente (comme Photoshop) ou garder l'original
 - `Entrée` = appliquer la transformation ; le canevas garde la taille de l'image, ce qui dépasse est coupé

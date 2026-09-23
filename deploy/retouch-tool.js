@@ -9,7 +9,7 @@
  *     format: "auto",              // "auto" | "image/png" | "image/jpeg" | "image/webp"
  *     quality: 0.92,               // JPEG / WebP
  *     background: "#ffffff",       // fond utilisé pour les formats sans alpha
- *     lang: "fr",                  // "fr" | "en"  (défaut : langue du navigateur)
+ *     lang: "en",                  // "en" (défaut) | "fr"
  *     zIndex: 100000,
  *     onSave(result) {},           // result = { dataUrl, blob, mime, width, height, canvas } — peut renvoyer une Promise
  *     onCancel() {},
@@ -48,6 +48,7 @@
       presets: { custom: "Custom", arc: "Arc", arcLower: "Arc lower", arcUpper: "Arc upper", arch: "Arch", bulge: "Bulge", flag: "Flag", wave: "Wave", fish: "Fish", rise: "Rise", fisheye: "Fisheye", inflate: "Inflate", squeeze: "Squeeze", twist: "Twist" },
       exportT: "Export", format: "Format", auto: "Auto", quality: "Quality", background: "Background",
       more: "More", options: "Settings", pinch: "Pinch to zoom · two fingers to pan",
+      brushMenu: "right-click = brush options",
       liquifyShort: "Liquify", transformShort: "Transform",
       hints: {
         warp: "Drag to push pixels. [ ] brush size · Shift+[ ] pressure · Space = pan",
@@ -91,6 +92,7 @@
       presets: { custom: "Personnalisée", arc: "Arc", arcLower: "Arc inférieur", arcUpper: "Arc supérieur", arch: "Arche", bulge: "Renflement", flag: "Drapeau", wave: "Onde", fish: "Poisson", rise: "Ascension", fisheye: "Œil de poisson", inflate: "Gonflement", squeeze: "Compression", twist: "Torsion" },
       exportT: "Export", format: "Format", auto: "Auto", quality: "Qualité", background: "Fond",
       more: "Plus", options: "Réglages", pinch: "Pincer pour zoomer · deux doigts pour déplacer",
+      brushMenu: "clic droit = options du pinceau",
       liquifyShort: "Fluidité", transformShort: "Transf.",
       hints: {
         warp: "Glisser pour pousser les pixels. [ ] taille · Maj+[ ] pression · Espace = main",
@@ -198,6 +200,11 @@
 .rt-topscroll{display:contents}
 .rt-more{display:flex;align-items:center;gap:8px}
 .rt-grip,.rt-only-mobile{display:none}
+.rt-pop{position:fixed;z-index:40;width:232px;padding:9px 12px 11px;display:none;
+  background:var(--rt-panel);border:1px solid var(--rt-border);border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.55)}
+.rt-pop.open{display:block}
+.rt-pop h4{margin:0 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--rt-muted);font-weight:600}
+.rt-pop .rt-row label{flex:0 0 62px}
 .rt-toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;background:rgba(20,20,25,.92);
   border:1px solid var(--rt-border);border-radius:8px;padding:7px 12px;font-size:12px;line-height:1.3;text-align:center;
   color:var(--rt-text);opacity:0;transition:opacity .2s;pointer-events:none}
@@ -815,6 +822,19 @@ void main(){
       }
       this.warp = w; this.preset = "custom";
     }
+    // The handle the user sees and grabs sits ON the mesh, at the crossing of the 1/3 lines.
+    // (The raw Bezier control points float off the surface, which is what made them drift.)
+    warpHandle(k) {
+      const i = k % 4, j = (k / 4) | 0;
+      if (TransformState.isWarpCorner(k)) return [this.warp[k*2], this.warp[k*2 + 1]];
+      return this.warpAt(i / 3, j / 3);
+    }
+    static isWarpCorner(k) { return k === 0 || k === 3 || k === 12 || k === 15; }
+    // How much moving control point k moves its own crossing — used to drag 1:1.
+    static warpWeight(k) {
+      const i = k % 4, j = (k / 4) | 0;
+      return bez(i / 3)[i] * bez(j / 3)[j];
+    }
     warpAt(u, v) {
       const bu = bez(u), bv = bez(v), w = this.warp;
       let x = 0, y = 0;
@@ -906,7 +926,7 @@ void main(){
   class Editor {
     constructor(opts) {
       this.o = opts;
-      const lang = (opts.lang || (navigator.language || "en").slice(0, 2)).toLowerCase();
+      const lang = (opts.lang || "en").toLowerCase();       // English unless the host asks for another
       this.t = I18N[lang] || I18N.en;
       this.mode = opts.mode === "transform" ? "transform" : "liquify";
       this.tool = this.mode === "liquify" ? "warp" : "move";
@@ -1001,6 +1021,7 @@ void main(){
       this.buildLiquifyPanel();
       this.buildTransformPanel();
       this.buildExportPanel();
+      this.buildBrushPopup();
 
       // status bar
       const status = el("div", "rt-status");
@@ -1126,10 +1147,11 @@ void main(){
     buildLiquifyPanel() {
       const t = this.t, p = this.pLiq = el("div", "rt-sec-group");
       const b = this.section(p, t.brush);
-      this.sSize = this.slider(b, t.size, this.brush, "size", 5, 1000, 1, v => v + "px", () => this.requestRender());
-      this.sPressure = this.slider(b, t.pressure, this.brush, "pressure", 1, 100, 1);
-      this.sRate = this.slider(b, t.rate, this.brush, "rate", 0, 100, 1);
-      this.sDensity = this.slider(b, t.density, this.brush, "density", 0, 100, 1);
+      const sync = () => { this.syncBrushControls(); this.requestRender(); };
+      this.sSize = this.slider(b, t.size, this.brush, "size", 5, 1000, 1, v => v + "px", sync);
+      this.sPressure = this.slider(b, t.pressure, this.brush, "pressure", 1, 100, 1, null, sync);
+      this.sRate = this.slider(b, t.rate, this.brush, "rate", 0, 100, 1, null, sync);
+      this.sDensity = this.slider(b, t.density, this.brush, "density", 0, 100, 1, null, sync);
       this.check(b, t.pen, this.brush, "pen");
       const v = this.section(p, t.view);
       this.check(v, t.showMesh, this.vo, "showMesh", () => this.requestRender());
@@ -1142,6 +1164,42 @@ void main(){
       this.right.appendChild(p);
     }
 
+    // Right-click on the canvas: the brush settings, at the cursor (Photoshop-style)
+    buildBrushPopup() {
+      const t = this.t, pop = this.brushPop = el("div", "rt-pop");
+      pop.appendChild(el("h4", null, t.brush));
+      const mk = (label, key, min, max, step, fmt) =>
+        this.slider(pop, label, this.brush, key, min, max, step, fmt, () => { this.syncBrushControls(); this.requestRender(); });
+      this.pSize     = mk(t.size, "size", 5, 1000, 1, v => v + "px");
+      this.pPressure = mk(t.pressure, "pressure", 1, 100, 1);
+      this.pRate     = mk(t.rate, "rate", 0, 100, 1);
+      this.pDensity  = mk(t.density, "density", 0, 100, 1);
+      pop.addEventListener("contextmenu", e => { e.preventDefault(); e.stopPropagation(); });
+      this.root.appendChild(pop);
+    }
+    // keep the panel sliders and the popup sliders showing the same numbers
+    syncBrushControls() {
+      const pairs = [["size", this.sSize, this.pSize], ["pressure", this.sPressure, this.pPressure],
+                     ["rate", this.sRate, this.pRate], ["density", this.sDensity, this.pDensity]];
+      for (const [key, a, b] of pairs) {
+        const v = this.brush[key];
+        if (a) a.set(v);
+        if (b) b.set(v);
+      }
+    }
+    openBrushPop(x, y) {
+      if (this.mobile || this.mode !== "liquify" || this.tool === "hand" || !this.ready) return;
+      const p = this.brushPop;
+      this.syncBrushControls();
+      p.classList.add("open");
+      p.style.left = clamp(x + 2, 8, window.innerWidth - p.offsetWidth - 8) + "px";
+      p.style.top  = clamp(y + 2, 8, window.innerHeight - p.offsetHeight - 8) + "px";
+    }
+    closeBrushPop() {
+      if (!this.brushPop || !this.brushPop.classList.contains("open")) return false;
+      this.brushPop.classList.remove("open");
+      return true;
+    }
     buildTransformPanel() {
       const t = this.t, p = this.pXf = el("div", "rt-sec-group");
       const m = this.section(p, t.transform);
@@ -1226,7 +1284,9 @@ void main(){
       if (this.selPreset.value !== this.xf.preset) this.selPreset.value = this.xf.preset;
     }
     setHint(text) {
-      this.stHint.textContent = text != null ? text : (this.t.hints[this.tool] || "");
+      let h = text != null ? text : (this.t.hints[this.tool] || "");
+      if (text == null && this.mode === "liquify" && this.tool !== "hand") h += " · " + this.t.brushMenu;
+      this.stHint.textContent = h;
     }
     setStatus() {
       const t = this.t;
@@ -1311,6 +1371,7 @@ void main(){
     setMode(m) {
       if (m === this.mode || !this.ready) return;
       this.endDrag();
+      this.closeBrushPop();
       this.commitLive();                // applying the current mode's edit is undoable
       this.lastTool[this.mode] = this.tool;
       this.mode = m;
@@ -1323,6 +1384,7 @@ void main(){
       this.endDrag();
       if (name === "marquee" && this.xf && !this.xf.isIdentity()) this.commitLive();
       this.tool = name;
+      this.closeBrushPop();
       for (const k in this.toolEls) this.toolEls[k].classList.toggle("active", k === name);
       this.syncPanels(); this.requestRender();
       if (this.mobile) this.toast(this.t.hints[name]);
@@ -1371,7 +1433,17 @@ void main(){
       const block = (type, fn, opts) => { window.addEventListener(type, fn, opts); this._blockers.push([type, fn, opts]); };
       const inside = e => e.target instanceof Node && this.root.contains(e.target);
       for (const type of ["mousedown", "mouseup", "mousemove", "dblclick"]) block(type, e => { if (inside(e)) e.stopPropagation(); }, true);
-      block("contextmenu", e => { if (inside(e)) { e.preventDefault(); e.stopPropagation(); } }, true);
+      block("contextmenu", e => {
+        if (!inside(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        // a long press on a touch screen also fires this — never while something is being drawn
+        if (this.stage.contains(e.target) && !this.drag && !this.touches.size) this.openBrushPop(e.clientX, e.clientY);
+      }, true);
+      block("pointerdown", e => {
+        if (!this.brushPop.classList.contains("open")) return;
+        if (!(e.target instanceof Node) || this.brushPop.contains(e.target) || this.stage.contains(e.target)) return;
+        this.closeBrushPop();
+      }, true);
       block("wheel", e => this.onWheel(e), { capture: true, passive: false });
       block("keydown", e => this.onKeyDown(e), true);
       block("keyup", e => this.onKeyUp(e), true);
@@ -1399,6 +1471,7 @@ void main(){
       if (!this.stage.contains(e.target)) return;      // let panels scroll
       e.preventDefault();
       if (!this.ready) return;
+      this.closeBrushPop();
       const p = this.stagePos(e);
       const f = Math.exp(-clamp(e.deltaY, -120, 120) * 0.0022);
       this.zoomAt(p[0], p[1], f);
@@ -1428,6 +1501,7 @@ void main(){
       this.root.focus();
       const p = this.stagePos(e), ip = this.toImage(p[0], p[1]);
       this.pointer = p;
+      if (this.closeBrushPop()) { this.pointer = null; return; }               // first click dismisses the brush popup
       if (this.mobile && this.closeSheet()) { this.pointer = null; return; }   // first tap dismisses the sheet
       if (e.pointerType === "touch") {
         this.touches.set(e.pointerId, p);
@@ -1629,7 +1703,7 @@ void main(){
       const near = (q, r) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= r;
       const pv = this.toScreen(...xf.pivotDest());
       if (xf.warp && this.xfMode === "warp") {
-        for (let k = 0; k < 16; k++) if (near(this.toScreen(xf.warp[k*2], xf.warp[k*2 + 1]), HR + 1)) return { kind: "warp", idx: k };
+        for (let k = 0; k < 16; k++) if (near(this.toScreen(...xf.warpHandle(k)), HR + 1)) return { kind: "warp", idx: k };
         if (near(pv, HR)) return { kind: "pivot" };
         return this.pointInQuad(this.toImage(p[0], p[1])) ? { kind: "inside" } : null;
       }
@@ -1747,9 +1821,14 @@ void main(){
         }
         case "warp": {
           const w = xf.warp, w0 = d.state0.warp;
-          const mv = i => { w[i*2] = w0[i*2] + dxy[0]; w[i*2 + 1] = w0[i*2 + 1] + dxy[1]; };
-          mv(d.idx);
-          if (WARP_CORNER_HANDLES[d.idx]) for (const h of WARP_CORNER_HANDLES[d.idx]) mv(h);
+          const mv = (i, f) => { w[i*2] = w0[i*2] + dxy[0] * f; w[i*2 + 1] = w0[i*2 + 1] + dxy[1] * f; };
+          if (TransformState.isWarpCorner(d.idx)) {
+            mv(d.idx, 1);
+            for (const h of WARP_CORNER_HANDLES[d.idx]) mv(h, 1);   // corner drags its edge tangents along
+          } else {
+            // scale the control-point move so the crossing itself follows the pointer exactly
+            mv(d.idx, 1 / TransformState.warpWeight(d.idx));
+          }
           xf.preset = "custom";
           break;
         }
@@ -1866,7 +1945,7 @@ void main(){
       if (!this.ready) { if (e.key === "Escape") this.cancel(); return; }
       const k = e.key, ctrl = e.ctrlKey || e.metaKey;
       const done = () => e.preventDefault();
-      if (k === "Escape") { if (this.drag) this.cancelDrag(); else this.cancel(); return done(); }
+      if (k === "Escape") { if (this.closeBrushPop()) return done(); if (this.drag) this.cancelDrag(); else this.cancel(); return done(); }
       if (ctrl && (k === "z" || k === "Z")) { e.shiftKey ? this.redo() : this.undo(); return done(); }
       if (ctrl && (k === "y" || k === "Y")) { this.redo(); return done(); }
       if (k === "Enter") { if (ctrl) this.save(); else if (this.mode === "transform") this.commitLive(true); return done(); }
@@ -1879,8 +1958,9 @@ void main(){
       if (k === "-" || k === "_") { this.zoomBy(1 / 1.25); return done(); }
       if (k === "[" || k === "]") {
         const dir = k === "]" ? 1 : -1;
-        if (e.shiftKey) this.sPressure.set(clamp(this.brush.pressure + dir * 5, 1, 100));
-        else this.sSize.set(clamp(Math.round(this.brush.size * (dir > 0 ? 1.15 : 1 / 1.15) + dir), 5, 1000));
+        if (e.shiftKey) this.brush.pressure = clamp(this.brush.pressure + dir * 5, 1, 100);
+        else this.brush.size = clamp(Math.round(this.brush.size * (dir > 0 ? 1.15 : 1 / 1.15) + dir), 5, 1000);
+        this.syncBrushControls();
         this.requestRender(); return done();
       }
       if (k === "\\") { this.toggleOriginal(); return done(); }
@@ -1994,7 +2074,6 @@ void main(){
         else { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
       };
       if (xf.warp && this.xfMode === "warp") {
-        const w = xf.warp;
         ctx.strokeStyle = "rgba(79,140,255,.95)"; ctx.lineWidth = 1;
         for (const t of [0, 1 / 3, 2 / 3, 1]) {
           for (const along of ["u", "v"]) {
@@ -2006,12 +2085,10 @@ void main(){
             ctx.stroke();
           }
         }
-        ctx.strokeStyle = "rgba(255,255,255,.7)";
-        for (const c in WARP_CORNER_HANDLES) for (const h of WARP_CORNER_HANDLES[c]) {
-          const a = S(w[c*2], w[c*2 + 1]), b = S(w[h*2], w[h*2 + 1]);
-          ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        for (let k = 0; k < 16; k++) {
+          const corner = TransformState.isWarpCorner(k);
+          handle(S(...xf.warpHandle(k)), corner, corner ? 5 : 4);
         }
-        for (let k = 0; k < 16; k++) handle(S(w[k*2], w[k*2 + 1]), k in WARP_CORNER_HANDLES, k in WARP_CORNER_HANDLES ? 5 : 4);
       } else {
         const cs = xf.corners.map(c => S(c[0], c[1]));
         stroke2(() => { ctx.beginPath(); ctx.moveTo(cs[0][0], cs[0][1]); for (let i = 1; i < 4; i++) ctx.lineTo(cs[i][0], cs[i][1]); ctx.closePath(); });
