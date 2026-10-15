@@ -1036,6 +1036,118 @@
     z-index: 5;
   }
 
+  /* ---------- Mini boards: "callback" node (type: "mini") ---------- */
+  .item.mini { background: #15161a; border: 1px dashed rgba(79,140,255,.5); }
+  .item.mini.selected { border-style: solid; }
+  .item.mini.drag-over { border: 2px dashed var(--accent); }
+  .item.mini .mini-head {
+    position: absolute; top: 5px; left: 6px; z-index: 3;
+    width: calc((100% - 12px) / var(--ui-scale, 1));   /* fits the node once scaled */
+    transform: scale(var(--ui-scale, 1)); transform-origin: top left;
+    display: flex; align-items: center; gap: 5px; overflow: hidden; white-space: nowrap;
+    pointer-events: none; font-size: 12px;
+  }
+  .item.mini .mini-title { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+  .item.mini .mini-count { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+  .mini-tag {
+    display: inline-block; flex-shrink: 0;
+    background: rgba(79,140,255,.16); color: #9cc0ff;
+    border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 600;
+  }
+  .item.mini .mini-grid {
+    position: absolute; inset: 0;
+    padding: calc(8px + 24px * var(--ui-scale, 1)) 6px 6px;   /* header: 5px offset (zooms) + ~20px text (counter-scaled) */
+    display: grid; gap: 5px;
+    grid-template-columns: repeat(var(--mini-cols, 3), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--mini-rows, 1), minmax(0, 1fr));
+  }
+  .item.mini .mini-cell { min-width: 0; min-height: 0; background: #0d0e11; border-radius: 3px; overflow: hidden; }
+  .item.mini .mini-cell img {
+    display: block; width: 100%; height: 100%; object-fit: contain;
+    pointer-events: none; -webkit-user-drag: none;
+  }
+  .item.mini .mini-empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; color: var(--muted); font-size: 12px; padding: 20px;
+  }
+
+  /* Mini board dialogs (create / edit, picker) + lightbox */
+  .mini-modal { position: fixed; inset: 0; z-index: 560; display: none; }
+  .mini-modal.visible { display: block; }
+  .mini-modal .mm-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.65); }
+  .mini-modal .mini-box {
+    position: absolute; top: 12%; left: 50%; transform: translateX(-50%);
+    width: 460px; max-width: 92vw; max-height: 76vh;
+    background: var(--panel); border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .mini-modal .mini-box h2 { margin: 0; padding: 14px 16px 10px; font-size: 15px; }
+  .mini-modal .mini-body { padding: 0 16px 12px; overflow-y: auto; }
+  .mini-modal label { display: block; color: var(--muted); font-size: 11px; margin-top: 8px; }
+  .mini-modal input[type=text] {
+    width: 100%; margin-top: 4px; padding: 8px 10px; font: inherit; font-size: 13px;
+    background: var(--bg); color: var(--text); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; outline: none;
+  }
+  .mini-modal input[type=text]:focus { border-color: var(--accent); }
+  .mini-modal .mini-tags-suggest { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .mini-modal .mini-tags-suggest .mini-tag { cursor: pointer; }
+  .mini-modal .mini-tags-suggest .mini-tag.on { background: var(--accent); color: #fff; }
+  .mini-modal .mini-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 14px; }
+  .mini-modal .mini-actions button {
+    padding: 7px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,.12);
+    background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .mini-modal .mini-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .mini-modal .mini-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .mini-modal .mini-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px; border-radius: 7px;
+    background: var(--panel-2); cursor: pointer; border: 1px solid transparent;
+  }
+  .mini-modal .mini-row:hover { border-color: var(--accent); }
+  .mini-modal .mini-row.current { border-color: rgba(79,140,255,.5); }
+  .mini-modal .mini-thumbs { display: flex; gap: 3px; flex-shrink: 0; }
+  .mini-modal .mini-thumbs img { width: 46px; height: 34px; object-fit: cover; border-radius: 3px; background: #0d0e11; }
+  .mini-modal .mini-row-main { flex: 1; min-width: 0; }
+  .mini-modal .mini-row-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mini-modal .mini-row-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; color: var(--muted); font-size: 11px; align-items: center; }
+  .mini-modal .mini-row-btn {
+    background: transparent; border: 1px solid rgba(255,255,255,.12); color: var(--muted);
+    border-radius: 5px; padding: 3px 7px; cursor: pointer; font-size: 12px; flex-shrink: 0;
+  }
+  .mini-modal .mini-row-btn:hover { color: var(--text); border-color: var(--accent); }
+  .mini-modal .mini-row-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .mini-modal .mini-none { color: var(--muted); font-size: 12px; padding: 14px 4px; }
+  body.readonly .mini-modal .mini-row-btn { display: none; }
+
+  #mini-lightbox { position: fixed; inset: 0; z-index: 570; display: none; background: rgba(0,0,0,.88); }
+  #mini-lightbox.visible { display: flex; flex-direction: column; }
+  #mini-lightbox .ml-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 20px 70px 0; }
+  #mini-lightbox .ml-stage img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  #mini-lightbox .ml-bar { display: flex; align-items: center; gap: 12px; padding: 12px 20px 16px; color: var(--text); font-size: 13px; }
+  #mini-lightbox .ml-caption { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #mini-lightbox .ml-caption .ml-muted { color: var(--muted); }
+  #mini-lightbox button {
+    background: var(--panel-2); color: var(--text); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 6px; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  #mini-lightbox button.danger:hover { color: var(--danger); border-color: var(--danger); }
+  #mini-lightbox .ml-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 46px; height: 70px; font-size: 26px; padding: 0; background: rgba(40,41,46,.7);
+  }
+  #mini-lightbox .ml-prev { left: 12px; }
+  #mini-lightbox .ml-next { right: 12px; }
+  body.readonly #mini-lightbox .ml-remove { display: none; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(10px);
+    background: var(--panel-2); color: var(--text); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px; padding: 9px 16px; font-size: 13px; z-index: 900;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5); opacity: 0; pointer-events: none;
+    transition: opacity .18s, transform .18s;
+  }
+  #toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   /* Toolbar */
   #toolbar {
     position: fixed; top: calc(var(--topbar-h) + 10px); left: 12px;
@@ -1798,6 +1910,55 @@
 
 <div id="note-tip"></div>
 
+<!-- Mini boards: create / edit (name + tags) -->
+<div id="mini-dialog" class="mini-modal">
+  <div class="mm-backdrop" data-close></div>
+  <div class="mini-box">
+    <h2 id="md-title">New mini board</h2>
+    <div class="mini-body">
+      <label>Name
+        <input type="text" id="md-name" placeholder="e.g. Ork tanks" autocomplete="off" />
+      </label>
+      <label>Tags <span style="opacity:.7">(space or comma separated)</span>
+        <input type="text" id="md-tags" placeholder="e.g. tank ork vehicle" autocomplete="off" />
+      </label>
+      <div class="mini-tags-suggest" id="md-suggest"></div>
+    </div>
+    <div class="mini-actions">
+      <button data-close>Cancel</button>
+      <button class="primary" id="md-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mini boards: picker (search by tag) -->
+<div id="mini-picker" class="mini-modal">
+  <div class="mm-backdrop" data-close></div>
+  <div class="mini-box">
+    <h2 id="mp-title">Call a mini board</h2>
+    <div class="mini-body">
+      <input type="text" id="mp-search" placeholder="Search by tag or name…" autocomplete="off" />
+      <div class="mini-tags-suggest" id="mp-tags"></div>
+      <div class="mini-list" id="mp-list"></div>
+    </div>
+    <div class="mini-actions"><button data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- Mini boards: image viewer -->
+<div id="mini-lightbox">
+  <div class="ml-stage"><img id="ml-img" alt="" /></div>
+  <button class="ml-nav ml-prev" id="ml-prev" title="Previous (←)">‹</button>
+  <button class="ml-nav ml-next" id="ml-next" title="Next (→)">›</button>
+  <div class="ml-bar">
+    <div class="ml-caption" id="ml-caption"></div>
+    <button class="ml-remove danger" id="ml-remove" title="Remove this image from the mini board (in every release)">Remove from mini board</button>
+    <button id="ml-close" title="Close (Esc)">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
 <div id="note-popup">
   <div class="np-header">
     <span class="np-title" id="np-title">Note</span>
@@ -1818,6 +1979,7 @@
   <button id="btn-add-note"  title="Add a note (N)">+ Note</button>
   <button id="btn-add-slot"  title="Add an empty slot (S)">+ Slot</button>
   <button id="btn-add-group" title="Add a tier frame (G)">+ Tier</button>
+  <button id="btn-add-mini"  title="Call a mini board by tag (B)">+ Mini board</button>
   <div class="sep"></div>
   <button id="btn-zoom-out" title="Zoom out">−</button>
   <span class="zoom-label" id="zoom-label">100%</span>
@@ -3415,6 +3577,8 @@ function renderItem(it) {
       lbl.textContent = it.label;
       el.appendChild(lbl);
     }
+  } else if (it.type === "mini") {
+    buildMiniNode(el, it);   // callback node → a mini board's pictures (see "Mini boards")
   }
 
   // Resize handle only when this is the SOLE selected item and not pinned.
@@ -3578,7 +3742,7 @@ function updateInspector() {
   document.querySelector("#inspector h3").style.display = "";
   document.querySelectorAll("#inspector > label").forEach(l => l.style.display = "");
   document.getElementById("insp-delete").textContent = "Delete (Del)";
-  if (!it) {
+  if (!it || it.type === "mini") {   // callback nodes are edited from their right-click menu
     inspector.classList.remove("visible");
     return;
   }
@@ -4129,6 +4293,12 @@ viewport.addEventListener("wheel", e => {
 // ---------- Double-click ----------
 function onDoubleClickItem(e, it, el) {
   e.stopPropagation();
+  if (it.type === "mini") {   // callback node → view its pictures, starting at the one clicked
+    const cell = e.target.closest(".mini-cell");
+    if (findMiniBoard(it.miniId)) openMiniLightbox(it.miniId, cell ? +cell.dataset.idx : 0);
+    else openMiniPicker({ mode: "repoint", nodeId: it.id });
+    return;
+  }
   // Note text inside the notes panel — edit inline
   const noteTextEl = e.target.closest(".note-text");
   if (noteTextEl && (it.type === "image" || it.type === "slot")) {
@@ -4186,9 +4356,13 @@ window.addEventListener("dragover", e => e.preventDefault());
 window.addEventListener("drop", e => {
   e.preventDefault();
   dragCounter = 0; overlay.classList.remove("active");
-  document.querySelectorAll(".item.slot.drag-over, .item.image.drag-over").forEach(el => el.classList.remove("drag-over"));
+  document.querySelectorAll(".item.slot.drag-over, .item.image.drag-over, .item.mini.drag-over").forEach(el => el.classList.remove("drag-over"));
   const files = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"));
   if (files.length === 0) return;
+
+  // Dropped on a mini-board callback node → the pictures join that mini board
+  const miniEl = e.target.closest(".item.mini");
+  if (miniEl) { dropFilesOnMiniNode(getItem(+miniEl.dataset.id), files); return; }
 
   // If dropped on a slot, transform the slot into an image
   const slotEl = e.target.closest(".item.slot");
@@ -4229,9 +4403,9 @@ window.addEventListener("drop", e => {
 // Visual feedback when dragging over a slot or an existing image
 window.addEventListener("dragover", e => {
   if (!e.dataTransfer.types.includes("Files")) return;
-  document.querySelectorAll(".item.slot.drag-over, .item.image.drag-over")
+  document.querySelectorAll(".item.slot.drag-over, .item.image.drag-over, .item.mini.drag-over")
     .forEach(el => el.classList.remove("drag-over"));
-  const target = e.target.closest(".item.slot, .item.image");
+  const target = e.target.closest(".item.slot, .item.image, .item.mini");
   if (target) target.classList.add("drag-over");
 });
 
@@ -4429,6 +4603,7 @@ window.addEventListener("paste", e => {
 window.addEventListener("keydown", e => {
   const tag = e.target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || e.target.getAttribute("contenteditable") === "true") return;
+  if (isMiniUiOpen()) return;   // mini-board dialogs / viewer handle their own keys (Del must not delete nodes)
   if (e.code === "Space") { spaceDown = true; viewport.classList.add("space"); e.preventDefault(); }
   if (e.key === "Delete" || e.key === "Backspace") {
     if (selectedIds.size > 0 || selectedId != null) { deleteSelected(); e.preventDefault(); }
@@ -4441,6 +4616,7 @@ window.addEventListener("keydown", e => {
   if (e.key === "n" || e.key === "N") addNote(lastMouse.x, lastMouse.y, "");
   if (e.key === "g" || e.key === "G") addGroup(lastMouse.x, lastMouse.y);
   if (e.key === "s" || e.key === "S") addSlot(lastMouse.x, lastMouse.y);
+  if (e.key === "b" || e.key === "B") openMiniPicker({ mode: "call", sx: lastMouse.x, sy: lastMouse.y });
   if (e.key === "f" || e.key === "F") fitAll();
   if (e.key === "m" || e.key === "M") toggleViewMode();
   if (e.key === "0") { cb().view = { x: 0, y: 0, z: 1 }; applyView(); save(); }
@@ -4454,6 +4630,7 @@ window.addEventListener("blur", () => { spaceDown = false; viewport.classList.re
 document.getElementById("btn-add-note").onclick  = () => addNote(window.innerWidth/2, window.innerHeight/2, "");
 document.getElementById("btn-add-slot").onclick  = () => addSlot(window.innerWidth/2, window.innerHeight/2);
 document.getElementById("btn-add-group").onclick = () => addGroup(window.innerWidth/2, window.innerHeight/2);
+document.getElementById("btn-add-mini").onclick  = () => openMiniPicker({ mode: "call", sx: window.innerWidth/2, sy: window.innerHeight/2 });
 document.getElementById("btn-mode").onclick      = () => toggleViewMode();
 document.getElementById("btn-template").onclick  = () => loadBaseTemplate();
 function toggleViewMode() {
@@ -4610,6 +4787,7 @@ function buildMenuGroups(sx, sy, item) {
         { label: "+ Empty slot", shortcut: "S", action: () => addSlot(sx, sy) },
         { label: "+ Note",       shortcut: "N", action: () => addNote(sx, sy, "") },
         { label: "+ Tier frame", shortcut: "G", action: () => addGroup(sx, sy) },
+        { label: "+ Mini board (call by tag)…", shortcut: "B", action: () => openMiniPicker({ mode: "call", sx, sy }) },
       ],
       [
         { label: "Paste image",  shortcut: "Ctrl+V", action: () => pasteFromClipboard(sx, sy) },
@@ -4624,6 +4802,7 @@ function buildMenuGroups(sx, sy, item) {
     ];
   }
   // item-specific
+  if (item.type === "mini") return buildMiniMenu(item);
   const groups = [];
   const main = [];
   if (item.type === "note") {
@@ -4665,6 +4844,17 @@ function buildMenuGroups(sx, sy, item) {
     }});
   }
   groups.push(main);
+
+  // Mini boards: save the selected pictures as a tagged set, or add them to one
+  if (item.type === "image" && item.src && canEdit()) {
+    const imgs = selectedImageItems();
+    const what = imgs.length > 1 ? `${imgs.length} images` : "image";
+    const mini = [{ label: `📚 Save ${what} as mini board…`, action: () => saveImagesAsMiniBoard(imgs) }];
+    if (allMiniBoards().length) {
+      mini.push({ label: `Add ${what} to a mini board…`, action: () => openMiniPicker({ mode: "add", images: imgs }) });
+    }
+    groups.push(mini);
+  }
 
   groups.push([
     { label: "Duplicate", shortcut: "Ctrl+D", action: () => duplicateItem(item) },
@@ -4718,11 +4908,14 @@ async function pasteFromClipboard(sx, sy) {
   }
 }
 
+let ctxTargetEl = null;   // element right-clicked (lets a menu know e.g. which mini-board picture)
 viewport.addEventListener("contextmenu", e => {
   e.preventDefault();
   const itemEl = e.target.closest(".item");
   const item = itemEl ? getItem(+itemEl.dataset.id) : null;
-  if (item) select(item.id);
+  ctxTargetEl = e.target;
+  // Keep a multi-selection when right-clicking one of its items (e.g. "Save as mini board")
+  if (item && !selectedIds.has(item.id)) select(item.id);
   showContextMenu(e.clientX, e.clientY, item);
 });
 document.addEventListener("mousedown", e => {
@@ -4730,6 +4923,423 @@ document.addEventListener("mousedown", e => {
 }, true);
 window.addEventListener("blur", hideContextMenu);
 window.addEventListener("wheel", hideContextMenu);
+
+// ---------- Mini boards ----------
+// A mini board = a named, tagged set of images saved from a release, then
+// "called back" into any release through a callback node { type: "mini", miniId }.
+// It is linked: adding / removing an image updates every node that calls it.
+// Definitions live on the release they were created in (board.miniBoards), not
+// in a new top-level key of boards_data: every client — including tabs still
+// running an older version — round-trips state.boards untouched, whereas an
+// unknown top-level key would be dropped by their next save. Lookups scan all boards.
+function allMiniBoards() { return state.boards.flatMap(b => b.miniBoards || []); }
+function findMiniBoard(id) {
+  for (const b of state.boards) {
+    const mb = (b.miniBoards || []).find(m => m.id === id);
+    if (mb) return mb;
+  }
+  return null;
+}
+function miniBoardOwner(id) { return state.boards.find(b => (b.miniBoards || []).some(m => m.id === id)) || null; }
+function newMiniId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function parseTags(s) {
+  return [...new Set(String(s || "").split(/[\s,;#]+/).map(t => t.trim().toLowerCase()).filter(Boolean))];
+}
+// [[tag, count]] across all mini boards, most used first
+function allMiniTags() {
+  const counts = new Map();
+  for (const mb of allMiniBoards()) for (const t of mb.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+// How many callback nodes call this mini board, across all releases
+function miniUsage(id) {
+  let n = 0;
+  for (const b of state.boards) n += b.items.filter(i => i.type === "mini" && i.miniId === id).length;
+  return n;
+}
+function miniRatio(mb) {
+  const rs = (mb.images || []).map(im => im.ratio).filter(r => r > 0);
+  return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 1.5;
+}
+// Column count that shows the images biggest in a w×h area
+function miniGridLayout(n, w, h, ratio) {
+  let best = { cols: 1, rows: Math.max(1, n), size: -1 };
+  for (let cols = 1; cols <= Math.max(1, n); cols++) {
+    const rows = Math.ceil(n / cols) || 1;
+    const size = Math.min(w / cols, (h / rows) * ratio);
+    if (size > best.size) best = { cols, rows, size };
+  }
+  return best;
+}
+// Default node size for a mini board: ~170px wide cells, roughly square layout
+function miniDefaultSize(mb) {
+  const n = mb ? mb.images.length : 0;
+  if (!n) return { w: 340, h: 200 };
+  const r = miniRatio(mb), cell = 170;
+  const cols = Math.min(n, Math.max(1, Math.round(Math.sqrt(n * 1.6))));
+  const rows = Math.ceil(n / cols);
+  return { w: Math.round(cols * cell + (cols - 1) * 5 + 12), h: Math.round(rows * (cell / r) + (rows - 1) * 5 + 40) };
+}
+function toMiniImage(it) {
+  return { id: newMiniId("mi_"), src: it.src, label: it.label || "", ratio: it.w && it.h ? it.w / it.h : 1.5,
+           from: { boardId: cb().id, itemId: it.id } };
+}
+// Selected image nodes (with a picture), in reading order (rows top→bottom, then left→right)
+function selectedImageItems() {
+  const ids = selectedIds.size ? [...selectedIds] : (selectedId != null ? [selectedId] : []);
+  return ids.map(getItem).filter(it => it && it.type === "image" && it.src)
+    .sort((a, b) => Math.abs(a.y - b.y) > Math.min(a.h, b.h) / 2 ? a.y - b.y : a.x - b.x);
+}
+
+// Callback node content (called from renderItem)
+function buildMiniNode(el, it) {
+  const mb = findMiniBoard(it.miniId);
+  const head = document.createElement("div");
+  head.className = "mini-head";
+  el.appendChild(head);
+  if (!mb) {
+    head.innerHTML = `<span class="mini-title">📚 Mini board not found</span>`;
+    const empty = document.createElement("div");
+    empty.className = "mini-empty";
+    empty.textContent = canEdit() ? "It was deleted. Right-click → Choose a mini board…" : "This mini board was deleted.";
+    el.appendChild(empty);
+    return;
+  }
+  head.innerHTML = `<span class="mini-title">📚 ${esc(mb.name || "Mini board")}</span>`
+    + `<span class="mini-count">${mb.images.length}</span>`
+    + (mb.tags || []).map(t => `<span class="mini-tag">#${esc(t)}</span>`).join("");
+  if (!mb.images.length) {
+    const empty = document.createElement("div");
+    empty.className = "mini-empty";
+    empty.textContent = "Empty mini board — drop images here";
+    el.appendChild(empty);
+    return;
+  }
+  const { cols, rows } = miniGridLayout(mb.images.length, it.w - 12, it.h - 34, miniRatio(mb));
+  const grid = document.createElement("div");
+  grid.className = "mini-grid";
+  grid.style.setProperty("--mini-cols", cols);
+  grid.style.setProperty("--mini-rows", rows);
+  mb.images.forEach((im, i) => {
+    const cell = document.createElement("div");
+    cell.className = "mini-cell";
+    cell.dataset.idx = i;
+    if (im.label) cell.title = im.label;
+    const img = document.createElement("img");
+    img.src = im.src;
+    img.loading = "lazy";
+    cell.appendChild(img);
+    grid.appendChild(cell);
+  });
+  el.appendChild(grid);
+}
+
+function saveImagesAsMiniBoard(imgs) {
+  if (!canEdit() || !imgs.length) return;
+  const n = imgs.length;
+  openMiniDialog({ title: `New mini board · ${n} image${n > 1 ? "s" : ""}`, saveLabel: "Create" }, ({ name, tags }) => {
+    const b = cb();
+    if (!b.miniBoards) b.miniBoards = [];
+    b.miniBoards.push({
+      id: newMiniId("mb_"), name, tags,
+      images: imgs.map(toMiniImage),
+      createdAt: Date.now(), createdBy: currentUser?.email || null,
+    });
+    save();
+    toast(`Mini board “${name}” created — call it in any release with + Mini board (B)`, 3500);
+  });
+}
+function addImagesToMiniBoard(miniId, imgs) {
+  const mb = findMiniBoard(miniId);
+  if (!mb || !canEdit()) return;
+  const have = new Set(mb.images.map(im => im.src));
+  const fresh = imgs.filter(it => !have.has(it.src));
+  mb.images.push(...fresh.map(toMiniImage));
+  render(); save();
+  toast(fresh.length ? `${fresh.length} image${fresh.length > 1 ? "s" : ""} added to “${mb.name}”` : `Already in “${mb.name}”`);
+}
+function dropFilesOnMiniNode(node, files) {
+  const mb = node && findMiniBoard(node.miniId);
+  if (!mb) { toast("Choose a mini board for this node first (right-click)"); return; }
+  if (!canEdit()) return;
+  const miniId = mb.id;
+  files.forEach(f => fileToImage(f, (src, w, h) => {
+    const live = findMiniBoard(miniId);   // state may have been replaced by a remote update meanwhile
+    if (!live) return;
+    live.images.push({ id: newMiniId("mi_"), src, label: f.name.replace(/\.[^.]+$/, ""), ratio: w / h });
+    render(); save();
+  }));
+  toast(`Adding ${files.length} image${files.length > 1 ? "s" : ""} to “${mb.name}”…`);
+}
+function removeMiniImage(miniId, idx) {
+  const mb = findMiniBoard(miniId);
+  if (!mb || !canEdit() || !mb.images[idx]) return false;
+  const used = miniUsage(miniId);
+  if (!confirm(`Remove this image from “${mb.name}”?` + (used > 1 ? `\nThe mini board is called in ${used} places — it disappears from all of them.` : ""))) return false;
+  mb.images.splice(idx, 1);
+  render(); save();
+  return true;
+}
+function editMiniBoard(miniId, after) {
+  const mb = findMiniBoard(miniId);
+  if (!mb || !canEdit()) return;
+  openMiniDialog({ title: "Edit mini board", name: mb.name, tags: mb.tags || [] }, ({ name, tags }) => {
+    const live = findMiniBoard(miniId);
+    if (!live) return;
+    live.name = name; live.tags = tags;
+    render(); save();
+    if (after) after();
+  });
+}
+function deleteMiniBoard(miniId) {
+  const mb = findMiniBoard(miniId);
+  if (!mb || !canEdit()) return false;
+  const used = miniUsage(miniId);
+  if (!confirm(`Delete the mini board “${mb.name}” (${mb.images.length} images)?`
+      + (used ? `\nIt is called in ${used} place${used > 1 ? "s" : ""}; those nodes will show “not found”.` : "")
+      + "\nThe images on the releases themselves are not touched.")) return false;
+  const owner = miniBoardOwner(miniId);
+  owner.miniBoards = owner.miniBoards.filter(m => m.id !== miniId);
+  render(); save();
+  return true;
+}
+function isMiniUiOpen() {
+  return !!document.querySelector(".mini-modal.visible, #mini-lightbox.visible");
+}
+
+// ---- Create / edit dialog ----
+let miniDialogCb = null;
+const miniDialog = document.getElementById("mini-dialog");
+function openMiniDialog({ title, name = "", tags = [], saveLabel = "Save" }, onSave) {
+  document.getElementById("md-title").textContent = title;
+  document.getElementById("md-name").value = name;
+  document.getElementById("md-tags").value = tags.join(" ");
+  document.getElementById("md-save").textContent = saveLabel;
+  miniDialogCb = onSave;
+  renderMiniTagSuggest();
+  miniDialog.classList.add("visible");
+  setTimeout(() => document.getElementById("md-name").focus(), 0);
+}
+function closeMiniDialog() { miniDialog.classList.remove("visible"); miniDialogCb = null; }
+function renderMiniTagSuggest() {
+  const input = document.getElementById("md-tags");
+  const cur = new Set(parseTags(input.value));
+  const box = document.getElementById("md-suggest");
+  box.innerHTML = "";
+  for (const [tag] of allMiniTags()) {
+    const chip = document.createElement("span");
+    chip.className = "mini-tag" + (cur.has(tag) ? " on" : "");
+    chip.textContent = "#" + tag;
+    chip.title = cur.has(tag) ? "Remove this tag" : "Add this tag";
+    chip.addEventListener("click", () => {
+      const tags = parseTags(input.value);
+      input.value = (cur.has(tag) ? tags.filter(t => t !== tag) : [...tags, tag]).join(" ");
+      renderMiniTagSuggest();
+    });
+    box.appendChild(chip);
+  }
+}
+function submitMiniDialog() {
+  const tags = parseTags(document.getElementById("md-tags").value);
+  const name = document.getElementById("md-name").value.trim() || tags.join(" ") || "Mini board";
+  const cbFn = miniDialogCb;
+  closeMiniDialog();
+  if (cbFn) cbFn({ name, tags });
+}
+document.getElementById("md-tags").addEventListener("input", renderMiniTagSuggest);
+document.getElementById("md-save").addEventListener("click", submitMiniDialog);
+miniDialog.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); submitMiniDialog(); }
+  if (e.key === "Escape") { e.preventDefault(); closeMiniDialog(); }
+});
+miniDialog.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeMiniDialog));
+
+// ---- Picker: call / re-point / add-to, searched by tag or name ----
+// ctx = { mode: "call", sx, sy } | { mode: "repoint", nodeId } | { mode: "add", images }
+let miniPickerCtx = null;
+const miniPicker = document.getElementById("mini-picker");
+function openMiniPicker(ctx) {
+  if (!canEdit()) return;
+  miniPickerCtx = ctx;
+  const n = ctx.images?.length || 0;
+  document.getElementById("mp-title").textContent =
+    ctx.mode === "add"     ? `Add ${n} image${n > 1 ? "s" : ""} to a mini board` :
+    ctx.mode === "repoint" ? "Choose a mini board for this node" : "Call a mini board";
+  document.getElementById("mp-search").value = "";
+  renderMiniPicker();
+  miniPicker.classList.add("visible");
+  setTimeout(() => document.getElementById("mp-search").focus(), 0);
+}
+function closeMiniPicker() { miniPicker.classList.remove("visible"); miniPickerCtx = null; }
+function renderMiniPicker() {
+  const search = document.getElementById("mp-search");
+  const q = search.value.trim().toLowerCase().replace(/^#/, "");
+  const tagBox = document.getElementById("mp-tags");
+  tagBox.innerHTML = "";
+  for (const [tag, count] of allMiniTags()) {
+    const chip = document.createElement("span");
+    chip.className = "mini-tag" + (q === tag ? " on" : "");
+    chip.textContent = `#${tag} ${count}`;
+    chip.addEventListener("click", () => { search.value = q === tag ? "" : tag; renderMiniPicker(); search.focus(); });
+    tagBox.appendChild(chip);
+  }
+  const all = allMiniBoards();
+  const hits = all
+    .filter(mb => !q || (mb.name || "").toLowerCase().includes(q) || (mb.tags || []).some(t => t.includes(q)))
+    .sort((a, b) => ((b.tags || []).includes(q) - (a.tags || []).includes(q)) || (a.name || "").localeCompare(b.name || ""));
+  const list = document.getElementById("mp-list");
+  list.innerHTML = "";
+  if (!hits.length) {
+    const none = document.createElement("div");
+    none.className = "mini-none";
+    none.textContent = all.length
+      ? `No mini board matches “${q}”.`
+      : "No mini board yet. Select images in a release → right-click → Save as mini board…";
+    list.appendChild(none);
+    return;
+  }
+  const currentId = miniPickerCtx?.mode === "repoint" ? getItem(miniPickerCtx.nodeId)?.miniId : null;
+  for (const mb of hits) {
+    const row = document.createElement("div");
+    row.className = "mini-row" + (mb.id === currentId ? " current" : "");
+    const thumbs = document.createElement("div");
+    thumbs.className = "mini-thumbs";
+    for (const im of mb.images.slice(0, 3)) {
+      const t = document.createElement("img");
+      t.src = im.src; t.loading = "lazy"; t.alt = "";
+      thumbs.appendChild(t);
+    }
+    const main = document.createElement("div");
+    main.className = "mini-row-main";
+    const used = miniUsage(mb.id);
+    main.innerHTML = `<div class="mini-row-name">${esc(mb.name || "Mini board")}</div>`
+      + `<div class="mini-row-meta">${mb.images.length} image${mb.images.length > 1 ? "s" : ""}`
+      + (used ? ` · called ${used}×` : "") + " "
+      + (mb.tags || []).map(t => `<span class="mini-tag">#${esc(t)}</span>`).join(" ") + `</div>`;
+    const edit = document.createElement("button");
+    edit.className = "mini-row-btn"; edit.textContent = "✎"; edit.title = "Edit name & tags";
+    edit.addEventListener("click", e => { e.stopPropagation(); editMiniBoard(mb.id, renderMiniPicker); });
+    const del = document.createElement("button");
+    del.className = "mini-row-btn danger"; del.textContent = "🗑"; del.title = "Delete this mini board";
+    del.addEventListener("click", e => { e.stopPropagation(); if (deleteMiniBoard(mb.id)) renderMiniPicker(); });
+    row.append(thumbs, main, edit, del);
+    row.addEventListener("click", () => chooseMiniBoard(mb.id));
+    list.appendChild(row);
+  }
+}
+function chooseMiniBoard(miniId) {
+  const ctx = miniPickerCtx;
+  closeMiniPicker();
+  const mb = findMiniBoard(miniId);
+  if (!ctx || !mb) return;
+  if (ctx.mode === "call") {
+    const wp = screenToWorld(ctx.sx, ctx.sy);
+    const { w, h } = miniDefaultSize(mb);
+    const node = addItem({ type: "mini", miniId, x: wp.x - w / 2, y: wp.y - h / 2, w, h });
+    select(node.id);
+  } else if (ctx.mode === "repoint") {
+    const node = getItem(ctx.nodeId);
+    if (!node) return;
+    node.miniId = miniId;
+    render(); save();
+  } else if (ctx.mode === "add") {
+    addImagesToMiniBoard(miniId, ctx.images);
+  }
+}
+document.getElementById("mp-search").addEventListener("input", renderMiniPicker);
+miniPicker.addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.preventDefault(); closeMiniPicker(); }
+  if (e.key === "Enter") {   // Enter = first result
+    const first = document.querySelector("#mp-list .mini-row");
+    if (first) { e.preventDefault(); first.click(); }
+  }
+});
+miniPicker.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeMiniPicker));
+
+// ---- Lightbox (double-click a picture of a callback node) ----
+let miniLightbox = null; // { miniId, idx }
+const miniLightboxEl = document.getElementById("mini-lightbox");
+function openMiniLightbox(miniId, idx = 0) {
+  const mb = findMiniBoard(miniId);
+  if (!mb || !mb.images.length) return;
+  miniLightbox = { miniId, idx };
+  renderMiniLightbox();
+  miniLightboxEl.classList.add("visible");
+}
+function closeMiniLightbox() { miniLightboxEl.classList.remove("visible"); miniLightbox = null; }
+function renderMiniLightbox() {
+  const mb = miniLightbox && findMiniBoard(miniLightbox.miniId);
+  if (!mb || !mb.images.length) { closeMiniLightbox(); return; }
+  const n = mb.images.length;
+  miniLightbox.idx = ((miniLightbox.idx % n) + n) % n;
+  const im = mb.images[miniLightbox.idx];
+  document.getElementById("ml-img").src = im.src;
+  document.getElementById("ml-caption").innerHTML =
+    `${esc(im.label || "Untitled")} <span class="ml-muted">· 📚 ${esc(mb.name || "Mini board")} · ${miniLightbox.idx + 1}/${n}</span>`;
+  document.getElementById("ml-prev").style.display = n > 1 ? "" : "none";
+  document.getElementById("ml-next").style.display = n > 1 ? "" : "none";
+}
+function stepMiniLightbox(d) { if (miniLightbox) { miniLightbox.idx += d; renderMiniLightbox(); } }
+document.getElementById("ml-prev").addEventListener("click", () => stepMiniLightbox(-1));
+document.getElementById("ml-next").addEventListener("click", () => stepMiniLightbox(+1));
+document.getElementById("ml-close").addEventListener("click", closeMiniLightbox);
+document.getElementById("ml-remove").addEventListener("click", () => {
+  if (miniLightbox && removeMiniImage(miniLightbox.miniId, miniLightbox.idx)) renderMiniLightbox();
+});
+miniLightboxEl.querySelector(".ml-stage").addEventListener("click", e => {
+  if (e.target.tagName !== "IMG") closeMiniLightbox();
+});
+window.addEventListener("keydown", e => {
+  if (!miniLightbox) return;
+  if (e.key === "Escape") closeMiniLightbox();
+  if (e.key === "ArrowLeft")  stepMiniLightbox(-1);
+  if (e.key === "ArrowRight") stepMiniLightbox(+1);
+});
+
+// Right-click menu of a callback node
+function buildMiniMenu(item) {
+  const mb = findMiniBoard(item.miniId);
+  const cell = ctxTargetEl?.closest?.(".mini-cell");
+  const imgs = selectedImageItems();
+  const main = [];
+  if (mb && mb.images.length) {
+    main.push({ label: "View images (dbl-click)", action: () => openMiniLightbox(mb.id, cell ? +cell.dataset.idx : 0) });
+  }
+  if (canEdit()) {
+    if (mb) main.push({ label: "Edit name & tags…", action: () => editMiniBoard(mb.id) });
+    main.push({ label: mb ? "Choose another mini board…" : "Choose a mini board…",
+                action: () => openMiniPicker({ mode: "repoint", nodeId: item.id }) });
+    if (mb && imgs.length) {
+      main.push({ label: `Add the ${imgs.length} selected image${imgs.length > 1 ? "s" : ""}`,
+                  action: () => addImagesToMiniBoard(mb.id, imgs) });
+    }
+    if (mb) main.push({ label: "Fit node to its images", action: () => {
+      Object.assign(item, miniDefaultSize(mb)); render(); save();
+    }});
+  }
+  const groups = [main.length ? main : [{ label: "Mini board not found", disabled: true }]];
+  if (canEdit() && mb && cell) {
+    groups.push([{ label: "Remove this image from the mini board", danger: true,
+                   action: () => removeMiniImage(mb.id, +cell.dataset.idx) }]);
+  }
+  groups.push([
+    { label: "Duplicate", shortcut: "Ctrl+D", action: () => duplicateItem(item) },
+    { label: "Bring to front", action: () => bringToFront(item) },
+    { label: "Send to back",   action: () => sendToBack(item) },
+  ]);
+  groups.push([{ label: "Remove this node (the mini board stays)", shortcut: "Del", danger: true, action: () => deleteItem(item.id) }]);
+  return groups;
+}
+
+// ---------- Toast ----------
+let toastTimer = null;
+function toast(msg, ms = 2400) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("visible"), ms);
+}
 
 // ---------- Retouch (Liquify / Transform) ----------
 // Opens retouch-tool.js on the node image (or its alt). On save: the previous picture is
@@ -5101,6 +5711,11 @@ function deleteBoard(id) {
   const target = state.boards.find(b => b.id === id);
   if (!target) return;
   if (!confirm(`Delete release "${target.name}"? This cannot be undone.`)) return;
+  // Mini boards created on this release are shared by every release: move them, don't lose them
+  if (target.miniBoards?.length) {
+    const heir = fallbackBoard(target.year, target) || state.boards.find(b => b !== target);
+    heir.miniBoards = [...(heir.miniBoards || []), ...target.miniBoards];
+  }
   state.boards = state.boards.filter(b => b.id !== id);
   if (state.currentBoardId === id) {
     state.currentBoardId = (fallbackBoard(target.year, null) || state.boards[0]).id;

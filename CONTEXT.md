@@ -136,6 +136,16 @@ supabase/
 - `slot` — empty placeholder, same overlay structure as image
 - `note` — sticky yellow note, editable on double-click. Created via **+ Note / `N` / right-click → + Note** only — double-click on empty canvas used to create one, removed 2026-09-18 (too many accidental notes).
 - `group` — tier frame (dashed border + label + watermark). Slots inside are NOT children — they don't move with the frame.
+- `mini` — **callback node** showing a mini board (see below): `{ type: "mini", miniId, x, y, w, h }`.
+
+### Mini boards (2026-10-15)
+Named, tagged sets of reference pictures, saved from a release and **called back by tag** into any release. Linked, not copied: adding/removing a picture updates every node that calls the mini board.
+- **Storage**: `board.miniBoards = [{ id: "mb_…", name, tags: [..], images: [{ id: "mi_…", src, label, ratio, from: { boardId, itemId } }], createdAt, createdBy }]` on the release where it was created. Deliberately NOT a new top-level key of `boards_data.data`: older clients (and mobile.html) save `{ boards, nextBoardId }` and would silently drop an unknown key, while they round-trip `state.boards` untouched. Lookups scan all boards (`allMiniBoards()`, `findMiniBoard(id)`). Deleting a release moves its mini boards to another release (`deleteBoard`).
+- **Create**: select pictures → right-click one → "📚 Save N images as mini board…" (dialog: name + tags, existing tags offered as chips). Right-click keeps a multi-selection now (it used to reset it to the clicked item). Pictures are stored in reading order (rows, then left→right). "Add N images to a mini board…" appends to an existing one.
+- **Call**: toolbar **+ Mini board**, key **`B`** or canvas right-click → picker (search by tag or name, `#tag` accepted, tag chips with counts, Enter = first result) → creates a callback node sized for its pictures (`miniDefaultSize`). The node draws a header (📚 name · count · #tags, counter-scaled) and a grid whose column count maximises picture size (`miniGridLayout`).
+- **On a callback node**: double-click a picture → lightbox (←/→, Esc, "Remove from mini board"); drop image files on it → they join the mini board (uploaded like any drop); right-click → View images / Edit name & tags / Choose another mini board / Add the selected images / Fit node to its images / Remove this image / Remove node (the mini board stays). Del deletes the node only. A node whose mini board was deleted shows "Mini board not found". No inspector for callback nodes.
+- The picker also edits (✎) and deletes (🗑) mini boards. Readers can view (double-click) but not create/call/edit.
+- back-office (billing) and mobile.html only read `image` / `slot` (/ `note`) items, so callback nodes and mini-board pictures never reach workorders or the swipe deck.
 
 ### Statuses (image/slot, and alt)
 `item.status` ∈ `sketch` / `wip` / `review` / `approved` / `question` / null. Every surface reads the same key: `.status-ring` (colored inset border on the node), inspector chips, alt-modal chips, right-click → Status submenu, hover-tip badge, version-modal badge (`#vm-status[data-st]`).
