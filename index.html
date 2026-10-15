@@ -2415,6 +2415,137 @@ try {
 document.getElementById("btn-toolbar-collapse").addEventListener("click", () => setToolbarCollapsed(true));
 document.getElementById("btn-toolbar-reveal").addEventListener("click",   () => setToolbarCollapsed(false));
 
+// ---------- Sync merge ----------
+// When the server row changed since our last sync (a colleague saved) while we
+// have edits of our own, both are MERGED instead of ours being thrown away:
+// 3-way merge, base = the last server version we synced with (syncBase).
+// - boards, items, mini boards and their pictures are matched by id;
+// - an element changed on both sides is merged field by field (a move here + a
+//   status there both survive); the same field changed on both sides → ours;
+// - additions on both sides are all kept (an id taken twice gets a fresh one);
+// - a deletion only applies if the other side did not edit that element;
+// - order (tabs, z-order): ours if only we reordered, else theirs;
+// - pan/zoom (board.view) is personal: ours is kept.
+// BEGIN syncMerge (copied as-is into mobile.html — keep both in step)
+const mergeShared = (() => {
+  const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
+  const sortKeys = (k, v) => isObj(v) ? Object.keys(v).sort().reduce((o, key) => (o[key] = v[key], o), {}) : v;
+  const eq = (a, b) => a === b || JSON.stringify(a, sortKeys) === JSON.stringify(b, sortKeys);
+  const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  const has = (o, k) => isObj(o) && o[k] !== undefined;
+  const isIdArray = (...arrs) =>
+    arrs.every(a => a === undefined || (Array.isArray(a) && a.every(x => isObj(x) && x.id != null)))
+    && arrs.some(a => Array.isArray(a) && a.length > 0);
+  function merge(b, l, r) {
+    if (eq(l, b)) return clone(r);
+    if (eq(r, b)) return clone(l);
+    if (eq(l, r)) return clone(l);
+    if (Array.isArray(l) && Array.isArray(r) && isIdArray(b, l, r)) return mergeIdArray(Array.isArray(b) ? b : [], l, r);
+    if (isObj(l) && isObj(r)) return mergeObj(isObj(b) ? b : {}, l, r);
+    return clone(l);   // same value changed on both sides → ours
+  }
+  function mergeObj(b, l, r) {
+    const out = {};
+    for (const k of new Set([...Object.keys(l), ...Object.keys(r)])) {
+      const inL = has(l, k), inR = has(r, k), inB = has(b, k);
+      if (inL && inR) out[k] = merge(b[k], l[k], r[k]);
+      else if (inL) { if (!(inB && eq(l[k], b[k]))) out[k] = clone(l[k]); }   // they removed it, we didn't touch it → removed
+      else if (inR) { if (!(inB && eq(r[k], b[k]))) out[k] = clone(r[k]); }
+    }
+    return out;
+  }
+  function mergeIdArray(b, l, r, remap) {
+    const byId = a => new Map(a.map(x => [String(x.id), x]));
+    const bm = byId(b), lm = byId(l), rm = byId(r);
+    const out = new Map(), taken = [];
+    for (const id of new Set([...lm.keys(), ...rm.keys()])) {
+      const bi = bm.get(id), li = lm.get(id), ri = rm.get(id);
+      if (li && ri) {
+        if (!bi && !eq(li, ri)) { out.set(id, clone(ri)); taken.push(clone(li)); }   // both created this id
+        else out.set(id, merge(bi, li, ri));
+      } else if (li) { if (!(bi && eq(li, bi))) out.set(id, clone(li)); }   // new here, or edited here while deleted there
+      else           { if (!(bi && eq(ri, bi))) out.set(id, clone(ri)); }
+    }
+    const ids = a => a.map(x => String(x.id));
+    const common = list => list.filter(id => bm.has(id) && lm.has(id) && rm.has(id));
+    const lo = ids(l), ro = ids(r), bo = ids(b);
+    const weOnlyReordered = !eq(common(lo), common(bo)) && eq(common(ro), common(bo));
+    const result = [], seen = new Set();
+    for (const list of weOnlyReordered ? [lo, ro] : [ro, lo]) {
+      for (const id of list) if (out.has(id) && !seen.has(id)) { seen.add(id); result.push(out.get(id)); }
+    }
+    for (const el of taken) {
+      const old = el.id;
+      el.id = typeof old === "number"
+        ? Math.max(0, ...result.map(x => typeof x.id === "number" ? x.id : 0)) + 1
+        : old + "_" + Math.random().toString(36).slice(2, 7);
+      if (remap) remap[old] = el.id;
+      result.push(el);
+    }
+    return result;
+  }
+  // base / local / remote = { boards, nextBoardId } → merged { boards, nextBoardId, boardIdRemap }
+  return function mergeShared(base, local, remote) {
+    const boardIdRemap = {};
+    const boards = mergeIdArray(base.boards || [], local.boards || [], remote.boards || [], boardIdRemap);
+    const localById = new Map((local.boards || []).map(b => [b.id, b]));
+    const remoteById = new Map((remote.boards || []).map(b => [b.id, b]));
+    for (const b of boards) {
+      const lb = localById.get(b.id), rb = remoteById.get(b.id);
+      const maxItem = Math.max(0, ...(b.items || []).map(i => typeof i.id === "number" ? i.id : 0));
+      b.nextId = Math.max(b.nextId || 1, lb?.nextId || 1, rb?.nextId || 1, maxItem + 1);   // never hand out an id in use
+      if (lb?.view) b.view = clone(lb.view);
+    }
+    const maxBoard = Math.max(0, ...boards.map(b => typeof b.id === "number" ? b.id : 0));
+    return { boards, nextBoardId: Math.max(local.nextBoardId || 1, remote.nextBoardId || 1, maxBoard + 1), boardIdRemap };
+  };
+})();
+// END syncMerge
+
+// Last server version we are in sync with (deep copy) — the base of merges
+let syncBase = null;
+function setSyncBase(data) {
+  syncBase = data ? JSON.parse(JSON.stringify({ boards: data.boards || [], nextBoardId: data.nextBoardId || 1 })) : null;
+}
+// Put a merged state in place: keeps the open release, the selection and each
+// release's pan/zoom; re-renders unless an interaction is in progress.
+function applyMergedState(merged, remoteData, remoteUpdatedAt) {
+  try {   // safety net: what we had just before the merge
+    localStorage.setItem(STORAGE_KEY + ".before-merge", JSON.stringify({ at: new Date().toISOString(), boards: state.boards, nextBoardId: state.nextBoardId }));
+  } catch (e) {}
+  try {
+    isApplyingRemote = true;
+    const cur = state.currentBoardId;
+    state.boards = merged.boards;
+    state.nextBoardId = merged.nextBoardId;
+    if (merged.boardIdRemap && merged.boardIdRemap[cur] != null) state.currentBoardId = merged.boardIdRemap[cur];
+    if (!state.boards.find(b => b.id === state.currentBoardId)) {
+      state.currentBoardId = (state.boards.find(b => !b.archived) || state.boards[0])?.id ?? null;
+    }
+    runItemMigrations(state.boards);
+  } finally {
+    isApplyingRemote = false;
+  }
+  setSyncBase(remoteData);
+  lastSeenUpdatedAt = remoteUpdatedAt;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  for (const id of [...selectedIds]) if (!getItem(id)) selectedIds.delete(id);
+  if (selectedId != null && !getItem(selectedId)) selectedId = null;
+  if (!(drag || resize || pillDrag || pan || isTextEditing())) { render(); renderTopbar(); }
+}
+// After a refused save: fetch the server version, merge our edits into it.
+async function mergeWithServer() {
+  if (!syncBase) return false;
+  const { data, error } = await sb.from("boards_data").select("data, updated_at").eq("id", "default").single();
+  if (error || !data?.data) return false;
+  let merged;
+  try { merged = mergeShared(syncBase, { boards: state.boards, nextBoardId: state.nextBoardId }, data.data); }
+  catch (e) { console.error("Sync merge failed", e); return false; }
+  applyMergedState(merged, data.data, data.updated_at);
+  console.info("[sync] merged a colleague's changes with ours");
+  return true;
+}
+
 // ---------- Persistence ----------
 function save() {
   if (isApplyingRemote) return;             // don't echo remote updates back
@@ -2445,34 +2576,64 @@ async function cloudSave() {
   try { await cloudSaveNow(); } finally { saveInFlight = false; }
   if (saveQueued) { saveQueued = false; cloudSave(); }
 }
+let mergeWhenIdle = false;   // a refused save is waiting for the user to stop typing / dragging
 async function cloudSaveNow() {
   setSyncStatus("saving");
-  // Only sync the shared portion (currentBoardId stays per-user-session)
-  const sharedData = { boards: state.boards, nextBoardId: state.nextBoardId };
-  // Diagnostic: a healthy post-migration payload is a few hundred KB at most.
-  // MBs here mean base64 images are still in the jsonb (migration pending).
-  console.info(`[sync] payload ~${Math.round(JSON.stringify(sharedData).length / 1024)} KB`);
-  // Optimistic lock: only write over the row version we last saw. A client that
-  // missed realtime updates (sleep, network drop, old tab) would otherwise wipe
-  // everyone else's work with its stale copy — the main "things disappear" bug.
-  let q = sb.from("boards_data")
-    .update({ data: sharedData, updated_at: new Date().toISOString(), updated_by: currentUser.email })
-    .eq("id", "default");
-  if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
-  const { data, error } = await q.select("updated_at");
-  if (error) {
-    console.error("Cloud save error", error);
-    setSyncStatus("error", error.message);
-  } else if (!data || data.length === 0) {
-    // Conflict: someone wrote since our last sync — never overwrite blindly.
-    console.warn("Sync conflict — fetching latest board");
-    setSyncStatus("conflict");
-    await refetchRemote({ fromSave: true });
-  } else {
-    lastSeenUpdatedAt = data[0].updated_at;
-    setSyncStatus("saved");
+  for (let attempt = 0; attempt < 4; attempt++) {
+    // Only sync the shared portion (currentBoardId stays per-user-session).
+    // Snapshot it: state keeps changing while the request is on its way, and the
+    // snapshot becomes the merge base once the server has accepted it.
+    const sent = JSON.parse(JSON.stringify({ boards: state.boards, nextBoardId: state.nextBoardId }));
+    // Diagnostic: a healthy post-migration payload is a few hundred KB at most.
+    // MBs here mean base64 images are still in the jsonb (migration pending).
+    console.info(`[sync] payload ~${Math.round(JSON.stringify(sent).length / 1024)} KB`);
+    // Optimistic lock: only write over the row version we last saw. A client that
+    // missed realtime updates (sleep, network drop, old tab) would otherwise wipe
+    // everyone else's work with its stale copy.
+    let q = sb.from("boards_data")
+      .update({ data: sent, updated_at: new Date().toISOString(), updated_by: currentUser.email })
+      .eq("id", "default");
+    if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
+    const { data, error } = await q.select("updated_at");
+    if (error) {
+      console.error("Cloud save error", error);
+      setSyncStatus("error", error.message);
+      return;
+    }
+    if (data && data.length) {
+      lastSeenUpdatedAt = data[0].updated_at;
+      setSyncBase(sent);
+      setSyncStatus(attempt ? "merged" : "saved");
+      return;
+    }
+    // Refused: someone saved since our last sync. Merge their version with our
+    // edits and try again — never overwrite them, never drop ours. Not while the
+    // user is typing or dragging (that would swap the objects being edited):
+    // then it happens as soon as they stop.
+    console.warn("[sync] conflict — merging with the server version");
+    if (drag || resize || pillDrag || pan || isTextEditing()) {
+      mergeWhenIdle = true;
+      if (!mergeIdleTimer) mergeIdleTimer = setInterval(retryMergeWhenIdle, 1000);   // focus events can be missed
+      setSyncStatus("pending");
+      return;
+    }
+    if (!(await mergeWithServer())) break;
   }
+  // Could not merge (no base yet, fetch failed, or still refused): safe fallback = reload
+  setSyncStatus("conflict");
+  await refetchRemote({ fromSave: true });
 }
+// The deferred merge runs when the typing / dragging is over
+let mergeIdleTimer = null;
+function retryMergeWhenIdle() {
+  if (!mergeWhenIdle) { clearInterval(mergeIdleTimer); mergeIdleTimer = null; return; }
+  if (drag || resize || pillDrag || pan || isTextEditing()) return;
+  mergeWhenIdle = false;
+  clearInterval(mergeIdleTimer); mergeIdleTimer = null;
+  scheduleCloudSave();
+}
+document.addEventListener("focusout", () => setTimeout(retryMergeWhenIdle, 50));
+document.addEventListener("mouseup", () => setTimeout(retryMergeWhenIdle, 50));
 function setSyncStatus(kind, msg) {
   const el = document.getElementById("sync-indicator");
   if (!el) return;
@@ -2491,6 +2652,7 @@ function setSyncStatus(kind, msg) {
     }, 2000);
   }
   if (kind === "error")   { el.classList.add("error");  el.textContent = "⚠ Not saved — sync error" + (msg ? ` (${msg})` : "") + ". Ctrl+S to retry."; }
+  if (kind === "merged")   { el.classList.add("saved"); el.textContent = `Saved ✓ (merged with a colleague's changes)`; }
   if (kind === "conflict") { el.classList.add("error"); el.textContent = "⚠ Board modifié par quelqu'un d'autre — rechargé. Revérifie ta dernière modif."; }
 }
 
@@ -2512,7 +2674,7 @@ window.addEventListener("keydown", e => {
 }, true);
 // Closing the tab within a second of an edit could lose it: ask first
 window.addEventListener("beforeunload", e => {
-  if (savePendingTimer || saveInFlight || saveQueued) { e.preventDefault(); e.returnValue = ""; }
+  if (savePendingTimer || saveInFlight || saveQueued || mergeWhenIdle) { e.preventDefault(); e.returnValue = ""; }
 });
 
 function load() {
@@ -2569,6 +2731,7 @@ async function cloudLoad() {
   if (error) { console.error("Cloud load error", error); return false; }
   if (data && data.data) {
     lastSeenUpdatedAt = data.updated_at || null;
+    setSyncBase(data.data);   // deep copy: state.boards below is the live, mutable object
     isApplyingRemote = true;
     const remote = data.data;
     state.boards = remote.boards || [];
@@ -2603,7 +2766,7 @@ async function refetchRemote(opts = {}) {
   // Don't clobber work the user is in the middle of (unsaved edits, a save on its
   // way, a drag, typing). The conflict path of a save passes fromSave.
   if (savePendingTimer || drag || resize || pillDrag || pan || isTextEditing()) return;
-  if (!opts.fromSave && (saveInFlight || saveQueued)) return;
+  if (!opts.fromSave && (saveInFlight || saveQueued || mergeWhenIdle)) return;
   if (refetchInFlight) return;
   refetchInFlight = true;
   try {
@@ -2646,13 +2809,27 @@ function subscribeRealtime() {
           if (!payload.new?.data) { refetchRemote(); return; }
           if (payload.new.updated_by === currentUser?.email) return; // our own echo
           // Don't disrupt active interactions or text entry — skipped updates
-          // are caught up by refetchRemote on focusout/focus/conflict.
+          // are merged by our next save (conflict → merge) or caught up by refetchRemote.
           if (drag || resize || pillDrag || pan || isTextEditing()) return;
+          // We have edits not on the server yet: merge theirs in, don't replace ours.
+          // (A save already on its way will be refused and merge again, harmlessly.)
+          if ((savePendingTimer || saveInFlight || saveQueued || mergeWhenIdle) && syncBase) {
+            try {
+              const merged = mergeShared(syncBase, { boards: state.boards, nextBoardId: state.nextBoardId }, payload.new.data);
+              applyMergedState(merged, payload.new.data, payload.new.updated_at || lastSeenUpdatedAt);
+              scheduleMigrationIfNeeded();
+              return;
+            } catch (e) { console.error("Sync merge failed", e); }   // → plain apply below
+          }
           lastSeenUpdatedAt = payload.new.updated_at || lastSeenUpdatedAt;
+          setSyncBase(payload.new.data);
+          // Pan/zoom is personal: keep ours instead of jumping to the colleague's view
+          const myViews = new Map(state.boards.map(b => [b.id, b.view]));
           try {
             isApplyingRemote = true;
             state.boards = payload.new.data.boards || [];
             state.nextBoardId = payload.new.data.nextBoardId || 1;
+            for (const b of state.boards) if (myViews.get(b.id)) b.view = myViews.get(b.id);
             if (!state.boards.find(b => b.id === state.currentBoardId)) {
               state.currentBoardId = (state.boards.find(b => !b.archived) || state.boards[0])?.id ?? null;
             }

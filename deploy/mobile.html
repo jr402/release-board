@@ -666,25 +666,142 @@ async function cloudSave() {
 }
 async function cloudSaveNow() {
   setSync("saving");
-  // Optimistic lock (same as index.html): only write over the row version we
-  // last saw, so a phone that slept or lost network never wipes newer work.
-  let q = sb.from("boards_data")
-    .update({ data: { boards: state.boards, nextBoardId: state.nextBoardId },
-              updated_at: new Date().toISOString(), updated_by: currentUser.email })
-    .eq("id", "default");
-  if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
-  const { data, error } = await q.select("updated_at");
-  if (error) { console.error(error); setSync("error", error.message); }
-  else if (!data || data.length === 0) {
-    // Conflict: someone wrote since our last sync — reload instead of overwriting
-    console.warn("Sync conflict — fetching latest board");
-    setSync("error", "modifié ailleurs, board rechargé — revérifie ta modif");
-    await refetchRemote({ fromSave: true });
-  } else {
-    lastSeenUpdatedAt = data[0].updated_at;
-    setSync("saved");
+  for (let attempt = 0; attempt < 4; attempt++) {
+    // Snapshot: becomes the merge base once the server has accepted it
+    const sent = JSON.parse(JSON.stringify({ boards: state.boards, nextBoardId: state.nextBoardId }));
+    // Optimistic lock (same as index.html): only write over the row version we
+    // last saw, so a phone that slept or lost network never wipes newer work.
+    let q = sb.from("boards_data")
+      .update({ data: sent, updated_at: new Date().toISOString(), updated_by: currentUser.email })
+      .eq("id", "default");
+    if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
+    const { data, error } = await q.select("updated_at");
+    if (error) { console.error(error); setSync("error", error.message); return; }
+    if (data && data.length) {
+      lastSeenUpdatedAt = data[0].updated_at;
+      setSyncBase(sent);
+      setSync("saved");
+      return;
+    }
+    // Refused: someone saved meanwhile → merge their version with ours, try again
+    console.warn("[sync] conflict — merging with the server version");
+    if (!(await mergeWithServer())) break;
   }
+  // Could not merge: safe fallback = reload
+  setSync("error", "modifié ailleurs, board rechargé — revérifie ta modif");
+  await refetchRemote({ fromSave: true });
 }
+
+// Last server version we are in sync with (deep copy) — the base of merges
+let syncBase = null;
+function setSyncBase(d) {
+  syncBase = d ? JSON.parse(JSON.stringify({ boards: d.boards || [], nextBoardId: d.nextBoardId || 1 })) : null;
+}
+function applyMergedState(merged, remoteData, remoteUpdatedAt) {
+  try {
+    applyingRemote = true;
+    state.boards = merged.boards;
+    state.nextBoardId = merged.nextBoardId;
+    if (merged.boardIdRemap && merged.boardIdRemap[state.currentBoardId] != null) {
+      state.currentBoardId = merged.boardIdRemap[state.currentBoardId];
+    }
+  } finally {
+    applyingRemote = false;
+  }
+  setSyncBase(remoteData);
+  lastSeenUpdatedAt = remoteUpdatedAt;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  if (!swipe) pickBoard(state.currentBoardId, true);
+}
+async function mergeWithServer() {
+  if (!syncBase) return false;
+  const { data, error } = await sb.from("boards_data").select("data, updated_at").eq("id", "default").single();
+  if (error || !data || !data.data) return false;
+  let merged;
+  try { merged = mergeShared(syncBase, { boards: state.boards, nextBoardId: state.nextBoardId }, data.data); }
+  catch (e) { console.error("Sync merge failed", e); return false; }
+  applyMergedState(merged, data.data, data.updated_at);
+  return true;
+}
+
+// ---------- Sync merge ----------
+// Same 3-way merge as index.html (see there): a refused save or a colleague's update
+// while we have unsaved edits is merged instead of dropping our edits.
+// BEGIN syncMerge (copied as-is into mobile.html — keep both in step)
+const mergeShared = (() => {
+  const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
+  const sortKeys = (k, v) => isObj(v) ? Object.keys(v).sort().reduce((o, key) => (o[key] = v[key], o), {}) : v;
+  const eq = (a, b) => a === b || JSON.stringify(a, sortKeys) === JSON.stringify(b, sortKeys);
+  const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  const has = (o, k) => isObj(o) && o[k] !== undefined;
+  const isIdArray = (...arrs) =>
+    arrs.every(a => a === undefined || (Array.isArray(a) && a.every(x => isObj(x) && x.id != null)))
+    && arrs.some(a => Array.isArray(a) && a.length > 0);
+  function merge(b, l, r) {
+    if (eq(l, b)) return clone(r);
+    if (eq(r, b)) return clone(l);
+    if (eq(l, r)) return clone(l);
+    if (Array.isArray(l) && Array.isArray(r) && isIdArray(b, l, r)) return mergeIdArray(Array.isArray(b) ? b : [], l, r);
+    if (isObj(l) && isObj(r)) return mergeObj(isObj(b) ? b : {}, l, r);
+    return clone(l);   // same value changed on both sides → ours
+  }
+  function mergeObj(b, l, r) {
+    const out = {};
+    for (const k of new Set([...Object.keys(l), ...Object.keys(r)])) {
+      const inL = has(l, k), inR = has(r, k), inB = has(b, k);
+      if (inL && inR) out[k] = merge(b[k], l[k], r[k]);
+      else if (inL) { if (!(inB && eq(l[k], b[k]))) out[k] = clone(l[k]); }   // they removed it, we didn't touch it → removed
+      else if (inR) { if (!(inB && eq(r[k], b[k]))) out[k] = clone(r[k]); }
+    }
+    return out;
+  }
+  function mergeIdArray(b, l, r, remap) {
+    const byId = a => new Map(a.map(x => [String(x.id), x]));
+    const bm = byId(b), lm = byId(l), rm = byId(r);
+    const out = new Map(), taken = [];
+    for (const id of new Set([...lm.keys(), ...rm.keys()])) {
+      const bi = bm.get(id), li = lm.get(id), ri = rm.get(id);
+      if (li && ri) {
+        if (!bi && !eq(li, ri)) { out.set(id, clone(ri)); taken.push(clone(li)); }   // both created this id
+        else out.set(id, merge(bi, li, ri));
+      } else if (li) { if (!(bi && eq(li, bi))) out.set(id, clone(li)); }   // new here, or edited here while deleted there
+      else           { if (!(bi && eq(ri, bi))) out.set(id, clone(ri)); }
+    }
+    const ids = a => a.map(x => String(x.id));
+    const common = list => list.filter(id => bm.has(id) && lm.has(id) && rm.has(id));
+    const lo = ids(l), ro = ids(r), bo = ids(b);
+    const weOnlyReordered = !eq(common(lo), common(bo)) && eq(common(ro), common(bo));
+    const result = [], seen = new Set();
+    for (const list of weOnlyReordered ? [lo, ro] : [ro, lo]) {
+      for (const id of list) if (out.has(id) && !seen.has(id)) { seen.add(id); result.push(out.get(id)); }
+    }
+    for (const el of taken) {
+      const old = el.id;
+      el.id = typeof old === "number"
+        ? Math.max(0, ...result.map(x => typeof x.id === "number" ? x.id : 0)) + 1
+        : old + "_" + Math.random().toString(36).slice(2, 7);
+      if (remap) remap[old] = el.id;
+      result.push(el);
+    }
+    return result;
+  }
+  // base / local / remote = { boards, nextBoardId } → merged { boards, nextBoardId, boardIdRemap }
+  return function mergeShared(base, local, remote) {
+    const boardIdRemap = {};
+    const boards = mergeIdArray(base.boards || [], local.boards || [], remote.boards || [], boardIdRemap);
+    const localById = new Map((local.boards || []).map(b => [b.id, b]));
+    const remoteById = new Map((remote.boards || []).map(b => [b.id, b]));
+    for (const b of boards) {
+      const lb = localById.get(b.id), rb = remoteById.get(b.id);
+      const maxItem = Math.max(0, ...(b.items || []).map(i => typeof i.id === "number" ? i.id : 0));
+      b.nextId = Math.max(b.nextId || 1, lb?.nextId || 1, rb?.nextId || 1, maxItem + 1);   // never hand out an id in use
+      if (lb?.view) b.view = clone(lb.view);
+    }
+    const maxBoard = Math.max(0, ...boards.map(b => typeof b.id === "number" ? b.id : 0));
+    return { boards, nextBoardId: Math.max(local.nextBoardId || 1, remote.nextBoardId || 1, maxBoard + 1), boardIdRemap };
+  };
+})();
+// END syncMerge
 
 async function cloudLoad() {
   if (!sb) return false;
@@ -692,6 +809,7 @@ async function cloudLoad() {
   if (error) { console.error("Cloud load error", error); return false; }
   if (data && data.data) {
     lastSeenUpdatedAt = data.updated_at || null;
+    setSyncBase(data.data);   // deep copy: state.boards below is the live object
     applyingRemote = true;
     state.boards = data.data.boards || [];
     state.nextBoardId = data.data.nextBoardId || 1;
@@ -748,7 +866,16 @@ function subscribeRealtime() {
           if (payload.new.updated_by === (currentUser && currentUser.email)) return; // our own echo
           // Never yank the deck mid-gesture or mid-typing — refetchRemote catches up later
           if (swipe || isTextEditing()) return;
+          // Edits of ours not on the server yet: merge theirs in instead of replacing ours
+          if ((saveTimer || saveInFlight || saveQueued) && syncBase) {
+            try {
+              const merged = mergeShared(syncBase, { boards: state.boards, nextBoardId: state.nextBoardId }, payload.new.data);
+              applyMergedState(merged, payload.new.data, payload.new.updated_at || lastSeenUpdatedAt);
+              return;
+            } catch (e) { console.error("Sync merge failed", e); }   // → plain apply below
+          }
           lastSeenUpdatedAt = payload.new.updated_at || lastSeenUpdatedAt;
+          setSyncBase(payload.new.data);
           try {
             applyingRemote = true;
             state.boards = payload.new.data.boards || [];
