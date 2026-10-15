@@ -1731,14 +1731,17 @@
     position: fixed; bottom: 32px; right: 12px;
     background: var(--panel); color: var(--muted);
     padding: 4px 10px; border-radius: 4px;
-    font-size: 10px; z-index: 90;
+    font-size: 11px; z-index: 150;   /* above the inspector (100) */
     border: 1px solid rgba(255,255,255,.08);
-    display: none;
+    display: none; max-width: 420px;
   }
+  /* The inspector covers the bottom-right corner when an item is selected: sit left of it */
+  body:has(#inspector.visible) #sync-indicator { right: 264px; }
   #sync-indicator.visible { display: block; }
   #sync-indicator.saving { color: var(--warn); }
   #sync-indicator.saved  { color: var(--ok); }
-  #sync-indicator.error  { color: var(--danger); }
+  #sync-indicator.idle   { color: var(--muted); }   /* "Saved ✓ 14:32" stays visible, dimmed */
+  #sync-indicator.error  { color: var(--danger); border-color: rgba(224,86,107,.5); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -2429,9 +2432,20 @@ function scheduleCloudSave() {
   setSyncStatus("pending");
   savePendingTimer = setTimeout(cloudSave, 700);
 }
+let saveInFlight = false;
+let saveQueued = false;
 async function cloudSave() {
   if (!sb || !currentUser || !canEdit()) return;
   savePendingTimer = null;
+  // One write at a time. A second write started while the first is in flight
+  // carries the same (soon stale) lock, "conflicts" with our own first write,
+  // and the conflict refetch then wiped the edits made in between.
+  if (saveInFlight) { saveQueued = true; return; }
+  saveInFlight = true;
+  try { await cloudSaveNow(); } finally { saveInFlight = false; }
+  if (saveQueued) { saveQueued = false; cloudSave(); }
+}
+async function cloudSaveNow() {
   setSyncStatus("saving");
   // Only sync the shared portion (currentBoardId stays per-user-session)
   const sharedData = { boards: state.boards, nextBoardId: state.nextBoardId };
@@ -2453,7 +2467,7 @@ async function cloudSave() {
     // Conflict: someone wrote since our last sync — never overwrite blindly.
     console.warn("Sync conflict — fetching latest board");
     setSyncStatus("conflict");
-    await refetchRemote();
+    await refetchRemote({ fromSave: true });
   } else {
     lastSeenUpdatedAt = data[0].updated_at;
     setSyncStatus("saved");
@@ -2464,13 +2478,42 @@ function setSyncStatus(kind, msg) {
   if (!el) return;
   if (!USE_SUPABASE) { el.classList.remove("visible"); return; }
   el.classList.add("visible");
-  el.classList.remove("saving", "saved", "error");
-  if (kind === "pending") { el.textContent = "•"; }
+  el.classList.remove("saving", "saved", "idle", "error");
+  if (kind === "pending") { el.textContent = "• Unsaved changes"; }
   if (kind === "saving")  { el.classList.add("saving"); el.textContent = "Saving…"; }
-  if (kind === "saved")   { el.classList.add("saved");  el.textContent = "Saved ✓"; setTimeout(() => { if (el.textContent === "Saved ✓") el.classList.remove("visible"); }, 1500); }
-  if (kind === "error")   { el.classList.add("error");  el.textContent = "Sync error" + (msg ? ` — ${msg}` : ""); }
+  if (kind === "saved") {
+    // Stays on screen (dimmed after a moment) so you can always check the last save time
+    const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    el.classList.add("saved"); el.textContent = `Saved ✓ ${t}`;
+    clearTimeout(setSyncStatus.dimTimer);
+    setSyncStatus.dimTimer = setTimeout(() => {
+      if (el.classList.contains("saved")) { el.classList.remove("saved"); el.classList.add("idle"); }
+    }, 2000);
+  }
+  if (kind === "error")   { el.classList.add("error");  el.textContent = "⚠ Not saved — sync error" + (msg ? ` (${msg})` : "") + ". Ctrl+S to retry."; }
   if (kind === "conflict") { el.classList.add("error"); el.textContent = "⚠ Board modifié par quelqu'un d'autre — rechargé. Revérifie ta dernière modif."; }
 }
+
+// Ctrl+S / Cmd+S: save right now (skips the 700ms debounce). Works while typing
+// in a field too, and never opens the browser's "Save page" dialog.
+function saveNow() {
+  if (USE_SUPABASE && !canEdit()) { toast("Read-only — nothing to save"); return; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  if (!USE_SUPABASE || !currentUser) { toast("Saved on this computer"); return; }
+  if (savePendingTimer) { clearTimeout(savePendingTimer); savePendingTimer = null; }
+  cloudSave();   // if a save is already running, this one is queued right after it
+}
+window.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyS") {
+    e.preventDefault();
+    e.stopPropagation();   // the plain "S" shortcut would otherwise also add an empty slot
+    saveNow();
+  }
+}, true);
+// Closing the tab within a second of an edit could lose it: ask first
+window.addEventListener("beforeunload", e => {
+  if (savePendingTimer || saveInFlight || saveQueued) { e.preventDefault(); e.returnValue = ""; }
+});
 
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -2555,10 +2598,12 @@ document.addEventListener("focusout", () => setTimeout(() => refetchRemote(), 40
 // (re)subscribes, and when a realtime payload arrives truncated — any moment
 // where we may have missed updates.
 let refetchInFlight = false;
-async function refetchRemote() {
+async function refetchRemote(opts = {}) {
   if (!sb || !currentUser) return;
-  // Don't clobber work the user is in the middle of
+  // Don't clobber work the user is in the middle of (unsaved edits, a save on its
+  // way, a drag, typing). The conflict path of a save passes fromSave.
   if (savePendingTimer || drag || resize || pillDrag || pan || isTextEditing()) return;
+  if (!opts.fromSave && (saveInFlight || saveQueued)) return;
   if (refetchInFlight) return;
   refetchInFlight = true;
   try {

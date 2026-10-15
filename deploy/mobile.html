@@ -653,9 +653,18 @@ function save() {
     saveTimer = setTimeout(cloudSave, 700);
   }
 }
+// One write at a time (same as index.html): an overlapping write carries a
+// stale lock, conflicts with our own first write and its refetch wiped edits.
+let saveInFlight = false, saveQueued = false;
 async function cloudSave() {
   if (!sb || !currentUser || !canEdit()) return;
   saveTimer = null;
+  if (saveInFlight) { saveQueued = true; return; }
+  saveInFlight = true;
+  try { await cloudSaveNow(); } finally { saveInFlight = false; }
+  if (saveQueued) { saveQueued = false; cloudSave(); }
+}
+async function cloudSaveNow() {
   setSync("saving");
   // Optimistic lock (same as index.html): only write over the row version we
   // last saw, so a phone that slept or lost network never wipes newer work.
@@ -670,7 +679,7 @@ async function cloudSave() {
     // Conflict: someone wrote since our last sync — reload instead of overwriting
     console.warn("Sync conflict — fetching latest board");
     setSync("error", "modifié ailleurs, board rechargé — revérifie ta modif");
-    await refetchRemote();
+    await refetchRemote({ fromSave: true });
   } else {
     lastSeenUpdatedAt = data[0].updated_at;
     setSync("saved");
@@ -701,9 +710,10 @@ function isTextEditing() {
 // Re-pull the row if it changed: after a conflict, when the app comes back to
 // the foreground / online, on (re)subscribe and on truncated realtime payloads.
 let refetchInFlight = false;
-async function refetchRemote() {
+async function refetchRemote(opts = {}) {
   if (!sb || !currentUser) return;
   if (saveTimer || swipe || isTextEditing() || refetchInFlight) return;
+  if (!opts.fromSave && (saveInFlight || saveQueued)) return;   // a save of ours is on its way
   refetchInFlight = true;
   try {
     // Cheap version probe first — the full row can be several MB
