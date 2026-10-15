@@ -1061,7 +1061,16 @@
     grid-template-columns: repeat(var(--mini-cols, 3), minmax(0, 1fr));
     grid-template-rows: repeat(var(--mini-rows, 1), minmax(0, 1fr));
   }
-  .item.mini .mini-cell { min-width: 0; min-height: 0; background: #0d0e11; border-radius: 3px; overflow: hidden; }
+  .item.mini { cursor: move; }   /* the node moves by its title bar / margins… */
+  .item.mini .mini-cell { min-width: 0; min-height: 0; background: #0d0e11; border-radius: 3px; overflow: hidden; cursor: grab; }  /* …a picture is pulled out */
+  body.readonly .item.mini .mini-cell { cursor: zoom-in; }
+  .mini-ghost {
+    position: fixed; z-index: 800; pointer-events: none; width: 150px;
+    transform: translate(-50%, -50%); opacity: .85; border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6); outline: 2px solid var(--accent);
+  }
+  .mini-ghost.inside { opacity: .35; outline-color: var(--muted); }   /* over its own node = cancel */
+  body.mini-pulling, body.mini-pulling * { cursor: grabbing !important; }
   .item.mini .mini-cell img {
     display: block; width: 100%; height: 100%; object-fit: contain;
     pointer-events: none; -webkit-user-drag: none;
@@ -1137,7 +1146,7 @@
   }
   #mini-lightbox .ml-prev { left: 12px; }
   #mini-lightbox .ml-next { right: 12px; }
-  body.readonly #mini-lightbox .ml-remove { display: none; }
+  body.readonly #mini-lightbox .ml-remove, body.readonly #mini-lightbox .ml-place { display: none; }
 
   #toast {
     position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(10px);
@@ -1952,6 +1961,7 @@
   <button class="ml-nav ml-next" id="ml-next" title="Next (→)">›</button>
   <div class="ml-bar">
     <div class="ml-caption" id="ml-caption"></div>
+    <button class="ml-place" id="ml-place" title="Copy this image onto the current release as a new node (it stays in the mini board)">Place on the board</button>
     <button class="ml-remove danger" id="ml-remove" title="Remove this image from the mini board (in every release)">Remove from mini board</button>
     <button id="ml-close" title="Close (Esc)">Close</button>
   </div>
@@ -4087,7 +4097,7 @@ document.addEventListener("mousedown", e => {
   if (e.button !== 0) return;
   if (!(e.ctrlKey || e.metaKey)) return;
   // Don't trigger on UI controls (toolbar, inspector, modals, etc.)
-  if (e.target.closest("#toolbar, #inspector, #topbar, #ctx-menu, #members-modal, #version-modal, #alt-modal, #note-popup, #password-modal, #auth-screen, #sync-indicator")) return;
+  if (e.target.closest("#toolbar, #inspector, #topbar, #ctx-menu, #members-modal, #version-modal, #alt-modal, #note-popup, #password-modal, #auth-screen, #sync-indicator, .mini-modal, #mini-lightbox")) return;
   e.preventDefault();
   e.stopPropagation();
   const box = document.createElement("div");
@@ -5024,7 +5034,9 @@ function buildMiniNode(el, it) {
     const cell = document.createElement("div");
     cell.className = "mini-cell";
     cell.dataset.idx = i;
-    if (im.label) cell.title = im.label;
+    cell.title = (im.label ? im.label + "\n" : "")
+      + (canEdit() ? "Drag out to place it on the board · double-click to view" : "Double-click to view");
+    cell.addEventListener("mousedown", e => startMiniPull(e, it, i));
     const img = document.createElement("img");
     img.src = im.src;
     img.loading = "lazy";
@@ -5071,6 +5083,73 @@ function dropFilesOnMiniNode(node, files) {
   }));
   toast(`Adding ${files.length} image${files.length > 1 ? "s" : ""} to “${mb.name}”…`);
 }
+// ---- Take a picture out of a mini board → new image node on the current release ----
+// It is copied, not moved: the picture stays in the mini board.
+function placeMiniImage(miniId, idx, wx, wy) {
+  const im = findMiniBoard(miniId)?.images[idx];
+  if (!im || !canEdit()) return null;
+  const r = im.ratio > 0 ? im.ratio : 1.5;
+  const { w, h } = r >= 1 ? { w: 400, h: 400 / r } : { w: 400 * r, h: 400 };
+  const node = addItem({ type: "image", src: im.src, label: im.label || "", status: null,
+                         x: wx - w / 2, y: wy - h / 2, w, h });
+  select(node.id);
+  return node;
+}
+// Drag a picture out of a callback node. A plain click (no move) just selects the node.
+let miniPull = null;   // { nodeId, miniId, idx, sx, sy, shift, started, ghost }
+function startMiniPull(e, node, idx) {
+  if (e.button !== 0 || spaceDown) return;   // pan / other buttons keep their usual handling
+  e.stopPropagation();
+  e.preventDefault();
+  cancelHoverTip();
+  miniPull = { nodeId: node.id, miniId: node.miniId, idx, sx: e.clientX, sy: e.clientY, shift: e.shiftKey, started: false, ghost: null };
+  document.addEventListener("mousemove", onMiniPullMove);
+  document.addEventListener("mouseup", onMiniPullEnd);
+}
+function miniPullOverOwnNode(x, y) {
+  const r = world.querySelector(`.item.mini[data-id="${miniPull.nodeId}"]`)?.getBoundingClientRect();
+  return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+function onMiniPullMove(e) {
+  if (!miniPull) return;
+  if (!miniPull.started) {
+    if (!canEdit() || Math.hypot(e.clientX - miniPull.sx, e.clientY - miniPull.sy) < 6) return;
+    const im = findMiniBoard(miniPull.miniId)?.images[miniPull.idx];
+    if (!im) return;
+    miniPull.started = true;
+    const g = document.createElement("img");
+    g.className = "mini-ghost";
+    g.src = im.src;
+    document.body.appendChild(g);
+    document.body.classList.add("mini-pulling");
+    miniPull.ghost = g;
+  }
+  miniPull.ghost.style.left = e.clientX + "px";
+  miniPull.ghost.style.top  = e.clientY + "px";
+  miniPull.ghost.classList.toggle("inside", miniPullOverOwnNode(e.clientX, e.clientY));
+}
+function onMiniPullEnd(e) {
+  document.removeEventListener("mousemove", onMiniPullMove);
+  document.removeEventListener("mouseup", onMiniPullEnd);
+  const p = miniPull;
+  if (!p) return;
+  if (!p.started) {   // simple click on a picture = click on the node
+    miniPull = null;
+    select(p.nodeId, p.shift ? { toggle: true } : undefined);
+    return;
+  }
+  const inside = miniPullOverOwnNode(e.clientX, e.clientY);
+  miniPull = null;
+  p.ghost.remove();
+  document.body.classList.remove("mini-pulling");
+  // Dropped back on its own node, or outside the canvas (toolbar, inspector…) → nothing
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  if (inside || !under || !viewport.contains(under)) return;
+  const wp = screenToWorld(e.clientX, e.clientY);
+  const node = placeMiniImage(p.miniId, p.idx, wp.x, wp.y);
+  if (node) toast(`“${node.label || "Image"}” placed on the board — it stays in the mini board`);
+}
+
 function removeMiniImage(miniId, idx) {
   const mb = findMiniBoard(miniId);
   if (!mb || !canEdit() || !mb.images[idx]) return false;
@@ -5283,6 +5362,14 @@ function stepMiniLightbox(d) { if (miniLightbox) { miniLightbox.idx += d; render
 document.getElementById("ml-prev").addEventListener("click", () => stepMiniLightbox(-1));
 document.getElementById("ml-next").addEventListener("click", () => stepMiniLightbox(+1));
 document.getElementById("ml-close").addEventListener("click", closeMiniLightbox);
+document.getElementById("ml-place").addEventListener("click", () => {
+  if (!miniLightbox) return;
+  const { miniId, idx } = miniLightbox;
+  closeMiniLightbox();
+  const wp = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);   // centre of the view
+  const node = placeMiniImage(miniId, idx, wp.x, wp.y);
+  if (node) toast(`“${node.label || "Image"}” placed on the board — it stays in the mini board`);
+});
 document.getElementById("ml-remove").addEventListener("click", () => {
   if (miniLightbox && removeMiniImage(miniLightbox.miniId, miniLightbox.idx)) renderMiniLightbox();
 });
@@ -5319,8 +5406,12 @@ function buildMiniMenu(item) {
   }
   const groups = [main.length ? main : [{ label: "Mini board not found", disabled: true }]];
   if (canEdit() && mb && cell) {
-    groups.push([{ label: "Remove this image from the mini board", danger: true,
-                   action: () => removeMiniImage(mb.id, +cell.dataset.idx) }]);
+    const idx = +cell.dataset.idx;
+    groups.push([
+      // copy next to the node; it stays in the mini board
+      { label: "Place this image on the board", action: () => placeMiniImage(mb.id, idx, item.x + item.w + 230, item.y + 150) },
+      { label: "Remove this image from the mini board", danger: true, action: () => removeMiniImage(mb.id, idx) },
+    ]);
   }
   groups.push([
     { label: "Duplicate", shortcut: "Ctrl+D", action: () => duplicateItem(item) },
