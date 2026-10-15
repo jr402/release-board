@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1b1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Release Board">
+<title>Release Board — Mobile</title>
+<style>
+  :root {
+    --bg: #1a1b1e;
+    --panel: #2a2b30;
+    --panel-2: #34353b;
+    --panel-3: #3e4048;
+    --text: #e7e7ea;
+    --muted: #8b8d95;
+    --accent: #4f8cff;
+    --danger: #e0566b;
+    --ok: #6ac46a;
+    --warn: #e0a14a;
+    --review: #d77a3b;
+    --wip: #4f8cff;
+    --sketch: #8b8d95;
+    --question: #ff2d95;
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; overscroll-behavior: none;
+    user-select: none; -webkit-user-select: none;
+  }
+  input, textarea { user-select: text; -webkit-user-select: text; font: inherit; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: var(--accent); }
+
+  /* ---------- Shell ---------- */
+  #app { display: none; flex-direction: column; height: 100vh; height: 100dvh; }
+  #app.on { display: flex; }
+
+  #topbar {
+    flex: 0 0 auto;
+    padding: calc(var(--sat) + 8px) 10px 8px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .tb-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; }
+  .tb-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tb-sub  { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .iconbtn {
+    width: 38px; height: 38px; border-radius: 10px; flex: 0 0 auto;
+    background: var(--panel-2); display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .iconbtn:active { background: var(--panel-3); }
+  .iconbtn.on { background: var(--accent); color: #fff; }
+  .iconbtn .fl { font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+
+  #progress { flex: 0 0 auto; height: 2px; background: rgba(255,255,255,.07); }
+  #progress > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+
+  #meta {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px 0; font-size: 11px; color: var(--muted);
+    letter-spacing: .06em; text-transform: uppercase;
+  }
+  #meta .grp { color: var(--text); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #meta .pos { margin-left: auto; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Deck ---------- */
+  #stage { flex: 1 1 auto; position: relative; overflow: hidden; touch-action: pan-y; }
+  #deck-empty {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: var(--muted); text-align: center; padding: 30px;
+  }
+  #deck-empty.on { display: flex; }
+
+  .card { position: absolute; inset: 0; padding: 8px 12px 10px; will-change: transform; }
+  .card-inner {
+    height: 100%; position: relative; display: flex; flex-direction: column;
+    background: var(--panel); border-radius: 16px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.07);
+  }
+  .ring { position: absolute; inset: 0; border-radius: 16px; pointer-events: none; z-index: 5; }
+  .card-inner[data-status="sketch"]   .ring { box-shadow: inset 0 0 0 3px var(--sketch); }
+  .card-inner[data-status="wip"]      .ring { box-shadow: inset 0 0 0 3px var(--wip); }
+  .card-inner[data-status="review"]   .ring { box-shadow: inset 0 0 0 3px var(--review); }
+  .card-inner[data-status="approved"] .ring { box-shadow: inset 0 0 0 3px var(--ok); }
+  /* "Question" = open question on the piece: hot pink ring + glow, like the desktop board */
+  .card-inner[data-status="question"] .ring {
+    box-shadow: inset 0 0 0 3px var(--question), inset 0 0 28px 2px rgba(255,45,149,.55);
+  }
+
+  .card-media {
+    flex: 1 1 auto; min-height: 0; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: #141519;
+  }
+  .card-media img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; pointer-events: none; }
+  .card-media .ph {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: var(--muted); font-size: 13px;
+  }
+  .card-media .ph .big { font-size: 34px; opacity: .5; }
+  .card.slot .card-media { border: 2px dashed rgba(255,255,255,.14); }
+
+  .card-badges { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; z-index: 4; }
+  .badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff;
+  }
+  .badge.tier    { background: rgba(79,140,255,.85); }
+  .badge.hid     { background: rgba(224,86,107,.85); }
+
+  .alt-toggle {
+    position: absolute; right: 10px; top: 10px; z-index: 6;
+    padding: 7px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: rgba(0,0,0,.6); color: #fff; letter-spacing: .05em;
+    border: 1px solid rgba(255,255,255,.18);
+  }
+  .alt-toggle.on { background: var(--warn); color: #1a1b1e; border-color: transparent; }
+
+  .zoom-hint {
+    position: absolute; right: 10px; bottom: 10px; z-index: 4;
+    font-size: 14px; opacity: .4; background: rgba(0,0,0,.45);
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .card-foot {
+    flex: 0 0 auto; padding: 9px 12px 11px;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .card-name {
+    font-size: 16px; font-weight: 600; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-name.none { color: var(--muted); font-weight: 500; font-style: italic; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: var(--panel-2); color: var(--muted); max-width: 46vw;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chip.st { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 10px; }
+  .chip.st[data-st="sketch"]   { color: var(--sketch); }
+  .chip.st[data-st="wip"]      { color: var(--wip); }
+  .chip.st[data-st="review"]   { color: var(--review); }
+  .chip.st[data-st="approved"] { color: var(--ok); }
+  .chip.st[data-st="question"] { color: var(--question); }
+  .chip.late { color: var(--danger); }
+  .chip.note { color: #1b1b1b; font-weight: 600; }
+
+  /* Sticky-note card */
+  .note-body {
+    flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 18px;
+    color: #1b1b1b; font-size: 16px; line-height: 1.5; white-space: pre-wrap;
+    -webkit-user-select: text; user-select: text;
+  }
+
+  /* ---------- Action bar ---------- */
+  #actions {
+    flex: 0 0 auto; display: flex; gap: 8px;
+    padding: 8px 12px calc(var(--sab) + 10px);
+    background: var(--panel); border-top: 1px solid rgba(255,255,255,.07);
+  }
+  .act {
+    flex: 1; height: 48px; border-radius: 12px; background: var(--panel-2);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 10px; color: var(--muted); letter-spacing: .02em;
+  }
+  .act:active { background: var(--panel-3); }
+  .act b { font-size: 17px; font-weight: 400; line-height: 1; }
+  .act[disabled] { opacity: .35; }
+
+  /* ---------- Sheets ---------- */
+  .sheet { position: fixed; inset: 0; z-index: 500; display: none; }
+  .sheet.on { display: block; }
+  .sheet .bd { position: absolute; inset: 0; background: rgba(0,0,0,.55); opacity: 0; transition: opacity .22s; }
+  .sheet.on .bd { opacity: 1; }
+  .sheet .pn {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--panel); border-radius: 18px 18px 0 0;
+    padding: 12px 16px calc(var(--sab) + 16px);
+    transform: translateY(100%); transition: transform .26s cubic-bezier(.22,.61,.36,1);
+    max-height: 86vh; overflow: auto; -webkit-overflow-scrolling: touch;
+  }
+  .sheet.on .pn { transform: none; }
+  .sheet.full .pn { top: var(--sat); max-height: none; }
+  .grab { width: 38px; height: 4px; border-radius: 2px; background: #4a4b52; margin: 2px auto 14px; }
+  .sh-title {
+    margin: 0 0 12px; font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sh-title .x { margin-left: auto; font-size: 20px; color: var(--muted); padding: 0 4px; }
+
+  .opt-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt {
+    flex: 1 1 calc(50% - 4px); min-height: 48px; border-radius: 12px;
+    background: var(--panel-2); border: 2px solid transparent;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    font-size: 14px; font-weight: 600;
+  }
+  .opt[data-st="sketch"]   { color: var(--sketch); }
+  .opt[data-st="wip"]      { color: var(--wip); }
+  .opt[data-st="review"]   { color: var(--review); }
+  .opt[data-st="approved"] { color: var(--ok); }
+  .opt.on[data-st="sketch"]   { border-color: var(--sketch); }
+  .opt.on[data-st="wip"]      { border-color: var(--wip); }
+  .opt.on[data-st="review"]   { border-color: var(--review); }
+  .opt.on[data-st="approved"] { border-color: var(--ok); }
+  .opt[data-st="question"]    { color: var(--question); }
+  .opt.on[data-st="question"] { border-color: var(--question); box-shadow: 0 0 10px rgba(255,45,149,.55); }
+  .opt.plain.on { border-color: var(--accent); }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 48px; border-radius: 12px; font-size: 15px; font-weight: 600;
+    background: var(--panel-2);
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.danger  { background: rgba(224,86,107,.16); color: var(--danger); }
+  .btn:active { filter: brightness(1.15); }
+  .btn[disabled] { opacity: .5; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+
+  #note-ta {
+    width: 100%; min-height: 150px; border-radius: 12px; padding: 12px;
+    border: 0; resize: none; font-size: 16px; line-height: 1.45;
+    color: #1b1b1b; background: #fff7c2;
+  }
+  #note-colors { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+  .swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; }
+  .swatch.on { border-color: var(--text); }
+
+  /* Info sheet */
+  .kv { display: flex; gap: 10px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { flex: 0 0 96px; color: var(--muted); font-size: 12px; padding-top: 2px; }
+  .kv .v { flex: 1; min-width: 0; word-break: break-word; }
+  .kv .v.none { color: #5f6169; }
+
+  /* Board picker */
+  .yr { margin-top: 14px; font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .08em; }
+  .brow {
+    display: flex; align-items: center; gap: 10px; padding: 13px 12px; margin-top: 8px;
+    border-radius: 12px; background: var(--panel-2); font-size: 15px; width: 100%; text-align: left;
+  }
+  .brow.on { background: rgba(79,140,255,.18); box-shadow: inset 0 0 0 2px var(--accent); }
+  .brow .cnt { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .brow.archived { font-style: italic; color: var(--muted); }
+  .yr.archived { margin-top: 22px; }
+
+  /* Grid */
+  #grid-list { padding-bottom: 8px; }
+  .grid-sec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .gcell { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #141519; }
+  .gcell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gcell.cur { box-shadow: 0 0 0 2px var(--accent); }
+  .gcell .gl {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 5px 4px;
+    font-size: 10px; line-height: 1.2;
+    background: linear-gradient(transparent, rgba(0,0,0,.85));
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gcell .gd { position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+  .gcell .gph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #4a4b52; font-size: 26px; }
+  .ghead { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin: 16px 0 8px; }
+  .ghead:first-child { margin-top: 0; }
+
+  /* ---------- Viewer ---------- */
+  #viewer { position: fixed; inset: 0; z-index: 700; background: #000; display: none; flex-direction: column; }
+  #viewer.on { display: flex; }
+  #vw-top {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: calc(var(--sat) + 10px) 14px 10px; color: #fff;
+    background: rgba(0,0,0,.85);
+  }
+  #vw-cap { flex: 1; min-width: 0; font-size: 13px; }
+  #vw-cap small { display: block; color: var(--muted); font-size: 11px; }
+  #vw-stage { flex: 1 1 auto; position: relative; overflow: hidden; touch-action: none; }
+  #vw-img {
+    position: absolute; left: 50%; top: 50%;
+    max-width: 100%; max-height: 100%;
+    transform-origin: center center; will-change: transform;
+  }
+  #vw-strip {
+    flex: 0 0 auto; display: flex; gap: 8px; overflow-x: auto;
+    padding: 10px 12px calc(var(--sab) + 12px); background: #0d0d0f;
+    -webkit-overflow-scrolling: touch;
+  }
+  #vw-strip:empty { display: none; }
+  .vthumb {
+    flex: 0 0 auto; width: 66px; border-radius: 8px; overflow: hidden;
+    position: relative; border: 2px solid transparent; background: #1a1b1e;
+  }
+  .vthumb.on { border-color: var(--accent); }
+  .vthumb img { width: 100%; height: 56px; object-fit: cover; display: block; }
+  .vthumb .lb { font-size: 9px; text-align: center; padding: 2px 1px; color: var(--muted); }
+  .vthumb.on .lb { color: var(--text); }
+
+  /* ---------- Auth ---------- */
+  #auth {
+    position: fixed; inset: 0; z-index: 900; background: var(--bg);
+    display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #auth.on { display: flex; }
+  #auth .card { width: 100%; max-width: 380px; }
+  #auth h1 { margin: 0 0 6px; font-size: 22px; }
+  #auth p.sub { margin: 0 0 22px; color: var(--muted); font-size: 13px; }
+  #auth label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; }
+  #auth input {
+    width: 100%; height: 48px; border-radius: 12px; padding: 0 14px;
+    background: var(--panel); border: 1px solid rgba(255,255,255,.1); color: var(--text);
+    font-size: 16px; /* 16px keeps iOS from zooming on focus */
+  }
+  #auth input:focus { outline: none; border-color: var(--accent); }
+  #auth .btn { margin-top: 20px; }
+  .err {
+    display: none; background: rgba(224,86,107,.14); color: var(--danger);
+    padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 12px;
+  }
+  .err.on { display: block; }
+
+  /* ---------- Misc ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(var(--sab) + 86px); z-index: 900;
+    transform: translateX(-50%) translateY(12px);
+    background: #3a3b42; color: var(--text); padding: 11px 18px; border-radius: 999px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: .22s;
+    max-width: 84vw; text-align: center;
+  }
+  #toast.on { opacity: 1; transform: translateX(-50%); }
+  #busy {
+    position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+  }
+  #busy.on { display: flex; }
+  .spin {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.18); border-top-color: var(--accent);
+    animation: sp .8s linear infinite;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #sync {
+    position: fixed; top: calc(var(--sat) + 12px); left: 50%; transform: translateX(-50%); z-index: 120;
+    font-size: 10px; color: var(--muted); opacity: 0; transition: .2s; pointer-events: none;
+  }
+  #sync.on { opacity: 1; }
+  #sync.err { color: var(--danger); }
+  .empty-note { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 10px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- ============ Auth ============ -->
+<div id="auth">
+  <div class="card">
+    <h1>Release Board</h1>
+    <p class="sub">Version mobile — connecte-toi avec ton email d'équipe.</p>
+    <div class="err" id="auth-err"></div>
+    <label for="auth-email">Email</label>
+    <input type="email" id="auth-email" placeholder="toi@ragingheroes.com" autocomplete="email" inputmode="email">
+    <label for="auth-pw">Mot de passe</label>
+    <input type="password" id="auth-pw" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn primary" id="auth-btn">Se connecter</button>
+    <p class="hint">Pas de compte ? Demande à un admin.</p>
+  </div>
+</div>
+
+<!-- ============ App ============ -->
+<div id="app">
+  <div id="topbar">
+    <button class="iconbtn" id="btn-board" aria-label="Changer de release">☰</button>
+    <button class="tb-title" id="tb-title">
+      <span class="tb-name" id="tb-name">—</span>
+      <span class="tb-sub" id="tb-sub"></span>
+    </button>
+    <button class="iconbtn" id="btn-filter" aria-label="Filtre tier"><span class="fl" id="filter-lbl">ALL</span></button>
+    <button class="iconbtn" id="btn-grid" aria-label="Vue grille">▦</button>
+    <button class="iconbtn" id="btn-menu" aria-label="Menu">⋯</button>
+  </div>
+
+  <div id="progress"><i id="progress-bar"></i></div>
+
+  <div id="meta">
+    <span class="grp" id="meta-group">—</span>
+    <span class="pos" id="meta-pos"></span>
+  </div>
+
+  <div id="stage">
+    <div id="deck-empty">
+      <div style="font-size:30px;opacity:.4">∅</div>
+      <div id="deck-empty-msg">Aucune card dans cette release.</div>
+    </div>
+  </div>
+
+  <div id="actions">
+    <button class="act" id="act-info"><b>ⓘ</b><span>Infos</span></button>
+    <button class="act" id="act-status"><b>◉</b><span>Statut</span></button>
+    <button class="act" id="act-note"><b>📝</b><span>Note</span></button>
+    <button class="act" id="act-photo"><b>📷</b><span>Photo</span></button>
+    <button class="act" id="act-history"><b>🕘</b><span>Versions</span></button>
+    <button class="act" id="act-share"><b>📤</b><span>Partager</span></button>
+  </div>
+</div>
+
+<div id="sync"></div>
+
+<!-- ============ Sheets ============ -->
+<div class="sheet" id="sheet-board">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title">Releases <button class="x" data-close>×</button></div>
+    <div id="board-list"></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-status">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title" id="status-title">Statut <button class="x" data-close>×</button></div>
+    <div class="opt-row" id="status-opts">
+      <button class="opt" data-st="sketch">Sketch</button>
+      <button class="opt" data-st="wip">WIP</button>
+      <button class="opt" data-st="review">Review</button>
+      <button class="opt" data-st="approved">OK</button>
+      <button class="opt" data-st="question">Question</button>
+    </div>
+    <div class="btn-row"><button class="btn" id="status-clear">Aucun statut</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-note">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title" id="note-title">Note <button class="x" data-close>×</button></div>
+    <textarea id="note-ta" placeholder="Écris ta note…"></textarea>
+    <div id="note-colors"></div>
+    <div class="btn-row">
+      <button class="btn danger" id="note-del">Effacer</button>
+      <button class="btn primary" id="note-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-info">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title" id="info-title">Infos <button class="x" data-close>×</button></div>
+    <div id="info-list"></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-photo">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title" id="photo-title">Nouvelle photo <button class="x" data-close>×</button></div>
+    <div style="border-radius:12px;overflow:hidden;background:#141519;display:flex;align-items:center;justify-content:center;max-height:44vh">
+      <img id="photo-preview" style="max-width:100%;max-height:44vh;object-fit:contain;display:block">
+    </div>
+    <p class="hint" id="photo-hint"></p>
+    <div class="btn-row">
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn primary" id="photo-confirm">Valider</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-menu">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title">Compte <button class="x" data-close>×</button></div>
+    <div class="kv"><div class="k">Email</div><div class="v" id="menu-email">—</div></div>
+    <div class="kv"><div class="k">Rôle</div><div class="v" id="menu-role">—</div></div>
+    <div class="btn-row"><a class="btn" href="index.html?desktop=1">🖥 Version bureau</a></div>
+    <div class="btn-row"><button class="btn" id="menu-reload">↻ Recharger le board</button></div>
+    <div class="btn-row"><button class="btn danger" id="menu-logout">Se déconnecter</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-share">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title" id="share-title">Partager <button class="x" data-close>×</button></div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:72px;height:72px;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#141519;display:flex;align-items:center;justify-content:center">
+        <img id="share-thumb" style="max-width:100%;max-height:100%;object-fit:contain;display:block" alt="">
+      </div>
+      <div style="min-width:0">
+        <div id="share-name" style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="share-sub" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
+    </div>
+    <div class="btn-row"><button class="btn primary" id="share-photo">📤 Envoyer la photo…</button></div>
+    <div class="btn-row"><button class="btn" id="share-tg">✈️ Lien sur Telegram</button></div>
+    <div class="btn-row"><button class="btn" id="share-copy">🔗 Copier le lien</button></div>
+    <p class="hint" id="share-hint"></p>
+  </div>
+</div>
+
+<div class="sheet full" id="sheet-grid">
+  <div class="bd" data-close></div>
+  <div class="pn">
+    <div class="grab"></div>
+    <div class="sh-title">Toutes les cards <button class="x" data-close>×</button></div>
+    <div id="grid-list"></div>
+  </div>
+</div>
+
+<!-- ============ Viewer ============ -->
+<div id="viewer">
+  <div id="vw-top">
+    <div id="vw-cap"></div>
+    <button class="iconbtn" id="vw-restore" style="width:auto;padding:0 12px;font-size:13px;display:none">Restaurer</button>
+    <button class="iconbtn" id="vw-close">×</button>
+  </div>
+  <div id="vw-stage"><img id="vw-img" alt=""></div>
+  <div id="vw-strip"></div>
+</div>
+
+<input type="file" id="file-input" accept="image/*" style="display:none">
+<div id="toast"></div>
+<div id="busy"><div class="spin"></div><div id="busy-msg" style="font-size:13px;color:var(--muted)"></div></div>
+
+<script>
+/* ==========================================================================
+   Release Board — mobile client
+   Standalone page. Same Supabase project / same `boards_data` row / same auth
+   as index.html. Read + light edit (status, note, photo) with a swipe deck.
+   ========================================================================== */
+
+const SUPABASE_URL      = "https://jwokrnrpmzscmnazzmci.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5xhGx3Sz0TiCz8RDVcH7kg_POFKcPkl";
+const STORAGE_KEY       = "figma-board-v1";     // shared local cache with the desktop app
+const BOARD_PREF_KEY    = "rh.mobile.boardId";
+const FILTER_PREF_KEY   = "rh.mobile.filter";
+
+let USE_SUPABASE = !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+let sb = null;
+let currentUser = null;              // { email, role, display_name }
+let membersCache = [];
+let realtimeChannel = null;
+let lastSeenUpdatedAt = null;        // updated_at of the row version we last loaded/wrote — optimistic lock
+let applyingRemote = false;
+let saveTimer = null;
+
+let state = { boards: [], currentBoardId: null, nextBoardId: 1 };
+let filter = "sovereign";            // leader | overlord | sovereign
+let deck = [];                       // [{ it, group }]
+let cur = 0;
+let curId = null;
+let altView = false;                 // showing the alt face of the current card
+
+const STATUSES = ["sketch", "wip", "review", "approved", "question"];
+const STATUS_LABEL = { sketch: "Sketch", wip: "WIP", review: "Review", approved: "OK", question: "Question" };
+const STATUS_COLOR = { sketch: "#8b8d95", wip: "#4f8cff", review: "#d77a3b", approved: "#6ac46a", question: "#ff2d95" };
+// Same palette as index.html (card / alt notes: noteColor, sticky notes: color)
+const NOTE_COLORS = { yellow:"#fff7c2", red:"#ffc4c4", pink:"#ffd6ea", orange:"#ffd9a8", green:"#bfe8c4", blue:"#bcdcf5", purple:"#e2c9f5" };
+const NOTE_COLOR_ORDER = ["yellow","red","pink","orange","green","blue","purple"];
+// Colour key of a card's note (current face) or of a sticky note
+function noteColorKey(it) {
+  if (!it) return "yellow";
+  if (it.type === "note") return it.color || it.noteColor || "yellow";
+  return face(it).o.noteColor || "yellow";
+}
+function noteBg(it) { return NOTE_COLORS[noteColorKey(it)] || NOTE_COLORS.yellow; }
+
+const $  = id => document.getElementById(id);
+const stage = $("stage");
+
+function canEdit() {
+  if (!USE_SUPABASE) return true;
+  return !!currentUser && (currentUser.role === "admin" || currentUser.role === "editor");
+}
+function board() {
+  let b = state.boards.find(b => b.id === state.currentBoardId);
+  if (!b && state.boards.length) { b = firstActiveBoard(); state.currentBoardId = b.id; }
+  return b || null;
+}
+// Archived releases (board.archived, set from the desktop tabs) stay readable
+// but are never landed on by default.
+function firstActiveBoard() { return state.boards.find(b => !b.archived) || state.boards[0] || null; }
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+function toast(msg, ms = 2000) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("on"), ms);
+}
+function busy(on, msg = "") { $("busy").classList.toggle("on", on); $("busy-msg").textContent = msg; }
+function buzz(ms = 8) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
+
+/* ---------- Supabase ---------- */
+async function loadSdk() {
+  if (window.supabase) return true;
+  return new Promise(resolve => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+    setTimeout(() => resolve(false), 8000);
+  });
+}
+async function initSupabase() {
+  if (!USE_SUPABASE) return false;
+  if (!(await loadSdk()) || !window.supabase) { USE_SUPABASE = false; return false; }
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: window.localStorage },
+    });
+    return true;
+  } catch (e) { console.error(e); USE_SUPABASE = false; return false; }
+}
+
+function setSync(kind, msg) {
+  const el = $("sync");
+  el.classList.remove("err");
+  if (kind === "pending") { el.textContent = "•"; el.classList.add("on"); }
+  if (kind === "saving")  { el.textContent = "Envoi…"; el.classList.add("on"); }
+  if (kind === "saved")   { el.textContent = "Enregistré ✓"; el.classList.add("on"); setTimeout(() => el.classList.remove("on"), 1400); }
+  if (kind === "error")   { el.textContent = "Erreur sync" + (msg ? " — " + msg : ""); el.classList.add("on", "err"); }
+}
+
+function save() {
+  if (applyingRemote) return;
+  if (USE_SUPABASE && !canEdit()) return;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  if (USE_SUPABASE && currentUser) {
+    clearTimeout(saveTimer);
+    setSync("pending");
+    saveTimer = setTimeout(cloudSave, 700);
+  }
+}
+async function cloudSave() {
+  if (!sb || !currentUser || !canEdit()) return;
+  saveTimer = null;
+  setSync("saving");
+  // Optimistic lock (same as index.html): only write over the row version we
+  // last saw, so a phone that slept or lost network never wipes newer work.
+  let q = sb.from("boards_data")
+    .update({ data: { boards: state.boards, nextBoardId: state.nextBoardId },
+              updated_at: new Date().toISOString(), updated_by: currentUser.email })
+    .eq("id", "default");
+  if (lastSeenUpdatedAt) q = q.eq("updated_at", lastSeenUpdatedAt);
+  const { data, error } = await q.select("updated_at");
+  if (error) { console.error(error); setSync("error", error.message); }
+  else if (!data || data.length === 0) {
+    // Conflict: someone wrote since our last sync — reload instead of overwriting
+    console.warn("Sync conflict — fetching latest board");
+    setSync("error", "modifié ailleurs, board rechargé — revérifie ta modif");
+    await refetchRemote();
+  } else {
+    lastSeenUpdatedAt = data[0].updated_at;
+    setSync("saved");
+  }
+}
+
+async function cloudLoad() {
+  if (!sb) return false;
+  const { data, error } = await sb.from("boards_data").select("data, updated_at").eq("id", "default").single();
+  if (error) { console.error("Cloud load error", error); return false; }
+  if (data && data.data) {
+    lastSeenUpdatedAt = data.updated_at || null;
+    applyingRemote = true;
+    state.boards = data.data.boards || [];
+    state.nextBoardId = data.data.nextBoardId || 1;
+    applyingRemote = false;
+  }
+  return true;
+}
+
+// True while the note textarea (or any field) has the focus — a remote
+// re-render then would lose what is being typed. Caught up on focusout.
+function isTextEditing() {
+  const ae = document.activeElement;
+  return !!ae && (ae.isContentEditable || ae.tagName === "TEXTAREA" || ae.tagName === "INPUT");
+}
+
+// Re-pull the row if it changed: after a conflict, when the app comes back to
+// the foreground / online, on (re)subscribe and on truncated realtime payloads.
+let refetchInFlight = false;
+async function refetchRemote() {
+  if (!sb || !currentUser) return;
+  if (saveTimer || swipe || isTextEditing() || refetchInFlight) return;
+  refetchInFlight = true;
+  try {
+    // Cheap version probe first — the full row can be several MB
+    const { data, error } = await sb.from("boards_data")
+      .select("updated_at").eq("id", "default").single();
+    if (error || !data) return;
+    if (data.updated_at && data.updated_at === lastSeenUpdatedAt) return;
+    const prev = lastSeenUpdatedAt;
+    const ok = await cloudLoad();
+    if (ok && lastSeenUpdatedAt !== prev) pickBoard(state.currentBoardId, true);
+  } finally {
+    refetchInFlight = false;
+  }
+}
+window.addEventListener("focus", () => refetchRemote());
+window.addEventListener("online", () => refetchRemote());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refetchRemote();
+});
+document.addEventListener("focusout", () => setTimeout(() => refetchRemote(), 400));
+
+function subscribeRealtime() {
+  if (!sb) return;
+  if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeChannel = sb.channel("boards_data_sync_mobile")
+    .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "boards_data", filter: "id=eq.default" },
+        payload => {
+          // Rows over ~1MB arrive TRUNCATED (no data / updated_by): never apply
+          // them — an empty board here would be saved back over everything.
+          if (!payload.new || !payload.new.data) { refetchRemote(); return; }
+          if (payload.new.updated_by === (currentUser && currentUser.email)) return; // our own echo
+          // Never yank the deck mid-gesture or mid-typing — refetchRemote catches up later
+          if (swipe || isTextEditing()) return;
+          lastSeenUpdatedAt = payload.new.updated_at || lastSeenUpdatedAt;
+          try {
+            applyingRemote = true;
+            state.boards = payload.new.data.boards || [];
+            state.nextBoardId = payload.new.data.nextBoardId || 1;
+          } finally {
+            applyingRemote = false;
+          }
+          pickBoard(state.currentBoardId, true);
+        })
+    .subscribe(status => {
+      // After any (re)connection, catch up on updates missed while offline
+      if (status === "SUBSCRIBED") refetchRemote();
+    });
+}
+
+/* ---------- Auth ---------- */
+function authErr(msg) { const e = $("auth-err"); e.textContent = msg; e.classList.add("on"); }
+
+async function loadCurrentUser(email) {
+  const { data, error } = await sb.from("members").select("email, role, display_name").eq("email", email).maybeSingle();
+  if (error) { authErr("Lookup échoué : " + error.message); return false; }
+  if (!data)  { authErr(email + " n'est pas encore invité. Demande à un admin."); await sb.auth.signOut(); return false; }
+  currentUser = { email: data.email, role: data.role, display_name: data.display_name || null };
+  return true;
+}
+async function loadMembersCache() {
+  if (!sb) return;
+  const { data, error } = await sb.from("members").select("email, display_name, role").order("email");
+  if (!error) membersCache = data || [];
+}
+function memberName(email) {
+  if (!email) return "";
+  const m = membersCache.find(x => x.email === email);
+  if (m && m.display_name) return m.display_name;
+  return email.split("@")[0] || email;
+}
+
+async function signIn() {
+  const email = $("auth-email").value.trim();
+  const pw    = $("auth-pw").value;
+  if (!email || !pw) { authErr("Email et mot de passe requis."); return; }
+  const btn = $("auth-btn");
+  $("auth-err").classList.remove("on");
+  btn.disabled = true; btn.textContent = "Connexion…";
+  const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+  btn.disabled = false; btn.textContent = "Se connecter";
+  if (error) {
+    authErr(/invalid login credentials/i.test(error.message)
+      ? "Email ou mot de passe incorrect."
+      : error.message);
+    return;
+  }
+  if (!(await loadCurrentUser(email))) return;
+  $("auth").classList.remove("on");
+  await bootApp();
+}
+
+/* ---------- Deck building ---------- */
+function matchesFilter(it) {
+  if (it.type !== "image" && it.type !== "slot") return true;
+  if (filter === "sovereign") return true;
+  if (filter === "overlord")  return it.tier === "leader" || it.tier === "overlord";
+  if (filter === "leader")    return it.tier === "leader";
+  return true;
+}
+function deckable(it) {
+  return (it.type === "image" || it.type === "slot" || it.type === "note") && matchesFilter(it);
+}
+// Row-major reading order with a tolerance so a slightly misaligned row stays a row.
+function sortRowMajor(items) {
+  const sorted = items.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  const rows = [];
+  for (const it of sorted) {
+    const tol = Math.max(40, (it.h || 100) * 0.5);
+    const row = rows.find(r => Math.abs(r.y - it.y) < tol);
+    if (row) row.items.push(it);
+    else rows.push({ y: it.y, items: [it] });
+  }
+  rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+  return rows.flatMap(r => r.items);
+}
+// Smallest tier frame whose rect contains the item's center.
+function containingGroup(it, groups) {
+  const cx = it.x + (it.w || 0) / 2, cy = it.y + (it.h || 0) / 2;
+  let best = null;
+  for (const g of groups) {
+    if (cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h) {
+      if (!best || (g.w * g.h) < (best.w * best.h)) best = g;
+    }
+  }
+  return best;
+}
+function rebuildDeck(keepId) {
+  const b = board();
+  deck = [];
+  if (b) {
+    const groups = b.items.filter(i => i.type === "group");
+    const order  = sortRowMajor(groups);
+    const bucket = new Map(order.map(g => [g.id, []]));
+    const loose  = [];
+    for (const it of b.items) {
+      if (it.type === "group" || !deckable(it)) continue;
+      const g = containingGroup(it, groups);
+      if (g && bucket.has(g.id)) bucket.get(g.id).push(it);
+      else loose.push(it);
+    }
+    for (const g of order)
+      for (const it of sortRowMajor(bucket.get(g.id)))
+        deck.push({ it, group: g.label || "Tier" });
+    for (const it of sortRowMajor(loose))
+      deck.push({ it, group: "Hors tier" });
+  }
+  let idx = keepId != null ? deck.findIndex(e => e.it.id === keepId) : -1;
+  if (idx < 0) idx = Math.min(cur, Math.max(0, deck.length - 1));
+  cur = deck.length ? idx : 0;
+  const nextId = deck.length ? deck[cur].it.id : null;
+  if (nextId !== curId) altView = false;   // a different card is now under the finger
+  curId = nextId;
+}
+function currentEntry() { return deck[cur] || null; }
+function currentItem()  { const e = currentEntry(); return e ? e.it : null; }
+
+/* The "face" of a card: the node itself, or its alt version when flipped.
+   Status / note / image all read and write through this so the alt modal
+   behaviour of the desktop app is preserved. */
+function face(it) {
+  if (altView && it && it.hasAlt && it.altNode) return { o: it.altNode, isAlt: true };
+  return { o: it, isAlt: false };
+}
+function faceSrc(it)    { const f = face(it); return f.isAlt ? f.o.src   : it.src; }
+function faceLabel(it)  { const f = face(it); return f.isAlt ? (f.o.label || it.label) : it.label; }
+function faceStatus(it) { const f = face(it); return f.o.status || ""; }
+function faceNote(it)   { const f = face(it); return f.o.note || ""; }
+function faceArchive(it){ const f = face(it); return f.o.archive || []; }
+
+/* ---------- Card rendering ---------- */
+function dueChip(it) {
+  if (!it.dueDate) return null;
+  const d = new Date(it.dueDate);
+  if (isNaN(d)) return { text: it.dueDate, late: false };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const late = d < today && it.status !== "approved";
+  return { text: d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }), late };
+}
+function chipsFor(it) {
+  const out = [];
+  const st = faceStatus(it);
+  if (st) out.push(`<span class="chip st" data-st="${st}">${STATUS_LABEL[st] || st}</span>`);
+  if (it.artist) out.push(`<span class="chip">👤 ${esc(memberName(it.artist))}</span>`);
+  if (it.miniSize) out.push(`<span class="chip">📏 ${esc(it.miniSize)}</span>`);
+  if (it.baseSize) out.push(`<span class="chip">⚙ ${esc(it.baseSize)}</span>`);
+  const due = dueChip(it);
+  if (due) out.push(`<span class="chip${due.late ? " late" : ""}">📅 ${esc(due.text)}</span>`);
+  if (it.briefLink)  out.push(`<span class="chip">📄 Brief</span>`);
+  if (it.threadLink) out.push(`<span class="chip">💬 Thread</span>`);
+  const note = faceNote(it);
+  if (note) out.push(`<span class="chip note" style="background:${noteBg(it)}">📝 ${esc(note.slice(0, 26))}${note.length > 26 ? "…" : ""}</span>`);
+  return out.join("");
+}
+
+function buildCard(entry, i) {
+  const it = entry.it;
+  const wrap = document.createElement("div");
+  wrap.className = "card " + it.type;
+  wrap.dataset.idx = i;
+
+  const inner = document.createElement("div");
+  inner.className = "card-inner";
+  wrap.appendChild(inner);
+
+  if (it.type === "note") {
+    inner.style.background = noteBg(it);
+    const body = document.createElement("div");
+    body.className = "note-body";
+    body.textContent = it.text || "";
+    inner.appendChild(body);
+    return wrap;
+  }
+
+  const isCur    = i === cur;
+  const readerHidden = it.hidden && !canEdit();
+  const status   = isCur ? faceStatus(it) : (it.status || "");
+  if (status) inner.dataset.status = status;
+
+  const media = document.createElement("div");
+  media.className = "card-media";
+  const src = isCur ? faceSrc(it) : it.src;
+
+  if (readerHidden) {
+    media.innerHTML = `<div class="ph"><div class="big">🔒</div><div>Coming soon</div></div>`;
+  } else if (it.type === "image" && src) {
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = it.label || "";
+    media.appendChild(img);
+    const hint = document.createElement("div");
+    hint.className = "zoom-hint";
+    hint.textContent = "⤢";
+    media.appendChild(hint);
+  } else {
+    media.innerHTML = `<div class="ph"><div class="big">+</div><div>Slot vide</div></div>`;
+  }
+
+  // Badges (tier / hidden)
+  const badges = [];
+  if (it.tier) badges.push(`<span class="badge tier">${esc(it.tier)}</span>`);
+  if (it.hidden && canEdit()) badges.push(`<span class="badge hid">hidden</span>`);
+  if (badges.length) {
+    const bb = document.createElement("div");
+    bb.className = "card-badges";
+    bb.innerHTML = badges.join("");
+    media.appendChild(bb);
+  }
+
+  // Alt flip
+  if (it.hasAlt && it.altNode && !readerHidden) {
+    const t = document.createElement("button");
+    t.className = "alt-toggle" + (isCur && altView ? " on" : "");
+    t.textContent = "ALT";
+    t.title = "Voir la version alternative";
+    t.dataset.nosw = "1";
+    t.addEventListener("click", ev => {
+      ev.stopPropagation();
+      if (i !== cur) return;
+      altView = !altView;
+      buzz();
+      refreshCurrentCard();
+    });
+    media.appendChild(t);
+  }
+
+  inner.appendChild(media);
+
+  const foot = document.createElement("div");
+  foot.className = "card-foot";
+  const label = isCur ? faceLabel(it) : it.label;
+  foot.innerHTML =
+    `<div class="card-name${label ? "" : " none"}">${esc(label || "Sans nom")}${isCur && altView ? ' <span style="color:var(--warn);font-size:12px">· ALT</span>' : ""}</div>` +
+    `<div class="chips">${readerHidden ? "" : chipsFor(it)}</div>`;
+  foot.dataset.nosw = "1";
+  foot.addEventListener("click", () => { if (i === cur) openInfo(); });
+  inner.appendChild(foot);
+
+  const ring = document.createElement("div");
+  ring.className = "ring";
+  inner.appendChild(ring);
+
+  return wrap;
+}
+
+/* ---------- Deck DOM window (only cur-1 .. cur+1 live) ---------- */
+const cards = new Map();   // index -> element
+
+function place(el, i, dx) {
+  el.style.transform = `translate3d(calc(${(i - cur) * 100}% + ${dx}px), 0, 0)`;
+}
+function layout(dx, animate) {
+  for (const [i, el] of cards) {
+    el.style.transition = animate ? "transform .3s cubic-bezier(.22,.61,.36,1)" : "none";
+    place(el, i, dx);
+  }
+}
+function ensureWindow() {
+  for (let i = cur - 1; i <= cur + 1; i++) {
+    if (i < 0 || i >= deck.length || cards.has(i)) continue;
+    const el = buildCard(deck[i], i);
+    el.style.transition = "none";
+    place(el, i, 0);
+    stage.appendChild(el);
+    cards.set(i, el);
+  }
+}
+function pruneWindow() {
+  for (const [i, el] of [...cards]) {
+    if (i < cur - 1 || i > cur + 1) { el.remove(); cards.delete(i); }
+  }
+}
+function renderDeck() {
+  for (const [, el] of cards) el.remove();
+  cards.clear();
+  $("deck-empty").classList.toggle("on", deck.length === 0);
+  ensureWindow();
+  layout(0, false);
+  renderMeta();
+  renderActions();
+}
+// Rebuild only the current card in place (status/note/photo/alt changed)
+function refreshCurrentCard() {
+  const old = cards.get(cur);
+  if (!old) return;
+  const el = buildCard(deck[cur], cur);
+  el.style.transition = "none";
+  place(el, cur, 0);
+  stage.replaceChild(el, old);
+  cards.set(cur, el);
+  renderMeta();
+  renderActions();
+}
+function renderMeta() {
+  const e = currentEntry();
+  $("meta-group").textContent = e ? e.group : "—";
+  $("meta-pos").textContent   = deck.length ? `${cur + 1} / ${deck.length}` : "";
+  $("progress-bar").style.width = deck.length ? `${((cur + 1) / deck.length) * 100}%` : "0";
+}
+function renderActions() {
+  const it = currentItem();
+  const ed = canEdit();
+  const isNode = !!it && (it.type === "image" || it.type === "slot");
+  const hiddenForMe = !!it && it.hidden && !ed;
+  $("act-info").disabled    = !it;
+  $("act-status").disabled  = !isNode || !ed || hiddenForMe;
+  $("act-note").disabled    = !it || (it.type === "note" && !ed);
+  $("act-photo").disabled   = !isNode || !ed || hiddenForMe;
+  $("act-history").disabled = !isNode || !faceSrc(it) || hiddenForMe;
+  $("act-share").disabled   = !isNode || !faceSrc(it) || hiddenForMe;
+}
+
+function goTo(i, animate = true) {
+  if (!deck.length) return;
+  i = Math.max(0, Math.min(deck.length - 1, i));
+  if (i === cur) { layout(0, animate); return; }
+  cur = i;
+  curId = deck[cur].it.id;
+  altView = false;
+  ensureWindow();
+  layout(0, animate);
+  renderMeta();
+  renderActions();
+  buzz();
+  clearTimeout(goTo._t);
+  goTo._t = setTimeout(pruneWindow, 340);
+}
+
+/* ---------- Swipe ---------- */
+let swipe = null;
+stage.addEventListener("pointerdown", e => {
+  if (!deck.length) return;
+  if (e.target.closest("[data-nosw]")) return;
+  swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0, dir: null, t: Date.now(), tgt: e.target };
+  if (e.pointerType === "mouse") { try { stage.setPointerCapture(e.pointerId); } catch (err) {} }
+});
+stage.addEventListener("pointermove", e => {
+  if (!swipe || e.pointerId !== swipe.id) return;
+  swipe.dx = e.clientX - swipe.x;
+  swipe.dy = e.clientY - swipe.y;
+  if (!swipe.dir) {
+    if (Math.abs(swipe.dx) > 8 || Math.abs(swipe.dy) > 8)
+      swipe.dir = Math.abs(swipe.dx) > Math.abs(swipe.dy) ? "h" : "v";
+    else return;
+  }
+  if (swipe.dir !== "h") return;
+  let d = swipe.dx;
+  if ((cur === 0 && d > 0) || (cur === deck.length - 1 && d < 0)) d *= 0.3;   // rubber band at the ends
+  layout(d, false);
+});
+function endSwipe(e) {
+  if (!swipe || (e && e.pointerId !== swipe.id)) return;
+  const s = swipe; swipe = null;
+  if (s.dir !== "h") {
+    // A tap on the image opens the fullscreen viewer
+    const quick = Date.now() - s.t < 400 && Math.abs(s.dx) < 10 && Math.abs(s.dy) < 10;
+    if (quick && s.tgt.closest && s.tgt.closest(".card-media")) {
+      const it = currentItem();
+      if (it && faceSrc(it) && !(it.hidden && !canEdit())) openViewer();
+    }
+    return;
+  }
+  const w = stage.clientWidth || 1;
+  const dt = Math.max(1, Date.now() - s.t);
+  const fast = Math.abs(s.dx) / dt > 0.4;
+  if (s.dx < -w * 0.25 || (fast && s.dx < -40))      goTo(cur + 1);
+  else if (s.dx >  w * 0.25 || (fast && s.dx >  40)) goTo(cur - 1);
+  else layout(0, true);
+}
+stage.addEventListener("pointerup", endSwipe);
+stage.addEventListener("pointercancel", e => { if (swipe) { swipe = null; layout(0, true); } });
+
+window.addEventListener("keydown", e => {
+  if ($("viewer").classList.contains("on")) { if (e.key === "Escape") closeViewer(); return; }
+  if (document.querySelector(".sheet.on")) { if (e.key === "Escape") closeSheets(); return; }
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowRight") goTo(cur + 1);
+  if (e.key === "ArrowLeft")  goTo(cur - 1);
+});
+
+/* ---------- Sheets ---------- */
+function openSheet(id) { closeSheets(); $(id).classList.add("on"); }
+function closeSheets() { document.querySelectorAll(".sheet.on").forEach(s => s.classList.remove("on")); }
+document.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheets(); });
+
+/* --- Board picker --- */
+function openBoards() {
+  const list = $("board-list");
+  if (!state.boards.length) { list.innerHTML = `<div class="empty-note">Aucune release.</div>`; openSheet("sheet-board"); return; }
+  // Same order as the desktop tabs (state.boards order); archived releases
+  // are listed apart at the bottom, like the desktop "Archived" popover.
+  const brow = b => {
+    const n = b.items.filter(i => i.type === "image" || i.type === "slot" || i.type === "note").length;
+    return `<button class="brow${b.id === state.currentBoardId ? " on" : ""}${b.archived ? " archived" : ""}" data-board="${b.id}">
+              <span>${b.archived ? "📦 " : ""}${esc(b.name || "Release")}</span><span class="cnt">${n} cards</span></button>`;
+  };
+  const active = state.boards.filter(b => !b.archived);
+  const years = [...new Set(active.map(b => b.year))].sort((a, b) => b - a);
+  let html = years.map(y => `<div class="yr">${y}</div>${active.filter(b => b.year === y).map(brow).join("")}`).join("");
+  const archived = state.boards.filter(b => b.archived).sort((a, b) => b.year - a.year);
+  if (archived.length) html += `<div class="yr archived">ARCHIVÉES (${archived.length})</div>${archived.map(brow).join("")}`;
+  list.innerHTML = html;
+  list.querySelectorAll("[data-board]").forEach(el => {
+    el.addEventListener("click", () => { pickBoard(+el.dataset.board); closeSheets(); });
+  });
+  openSheet("sheet-board");
+}
+function pickBoard(id, keepPosition = false) {
+  if (id != null) state.currentBoardId = id;
+  try { localStorage.setItem(BOARD_PREF_KEY, String(state.currentBoardId)); } catch (e) {}
+  const keep = keepPosition ? curId : null;
+  if (!keepPosition) cur = 0;
+  rebuildDeck(keep);
+  renderDeck();
+  renderTopbar();
+}
+function renderTopbar() {
+  const b = board();
+  $("tb-name").textContent = b ? (b.name || "Release") : "Aucune release";
+  const n = deck.length;
+  $("tb-sub").textContent = b ? `${b.year}${b.archived ? " · 📦 archivée" : ""} · ${n} card${n > 1 ? "s" : ""}` : "";
+  $("filter-lbl").textContent = filter === "sovereign" ? "ALL" : (filter === "overlord" ? "OVL" : "LDR");
+  $("btn-filter").classList.toggle("on", filter !== "sovereign");
+}
+
+/* --- Filter --- */
+$("btn-filter").addEventListener("click", () => {
+  filter = filter === "sovereign" ? "leader" : (filter === "leader" ? "overlord" : "sovereign");
+  try { localStorage.setItem(FILTER_PREF_KEY, filter); } catch (e) {}
+  const msg = filter === "sovereign" ? "Tout" : (filter === "leader" ? "Leader seulement" : "Leader + Overlord");
+  toast(msg, 1200);
+  rebuildDeck(curId);
+  renderDeck();
+  renderTopbar();
+});
+
+/* --- Status --- */
+function openStatus() {
+  const it = currentItem();
+  if (!it || !canEdit()) return;
+  const st = faceStatus(it);
+  $("status-title").innerHTML = `Statut${altView ? " · ALT" : ""} <button class="x" data-close>×</button>`;
+  document.querySelectorAll("#status-opts .opt").forEach(o => o.classList.toggle("on", o.dataset.st === st));
+  openSheet("sheet-status");
+}
+document.querySelectorAll("#status-opts .opt").forEach(o => {
+  o.addEventListener("click", () => setStatus(o.dataset.st));
+});
+$("status-clear").addEventListener("click", () => setStatus(""));
+function setStatus(st) {
+  const it = currentItem();
+  if (!it || !canEdit()) return;
+  const f = face(it);
+  if (st) f.o.status = st; else delete f.o.status;
+  closeSheets();
+  refreshCurrentCard();
+  save();
+  buzz(12);
+  toast(st ? `Statut : ${STATUS_LABEL[st]}` : "Statut retiré", 1400);
+}
+
+/* --- Note --- */
+let noteColor = "yellow";
+function openNote() {
+  const it = currentItem();
+  if (!it) return;
+  const isSticky = it.type === "note";
+  noteColor = noteColorKey(it);
+  $("note-title").innerHTML = `${isSticky ? "Texte de la note" : "Note"}${altView ? " · ALT" : ""} <button class="x" data-close>×</button>`;
+  const ta = $("note-ta");
+  ta.value = isSticky ? (it.text || "") : faceNote(it);
+  ta.readOnly = !canEdit();
+  ta.style.background = NOTE_COLORS[noteColor];
+  $("note-colors").innerHTML = NOTE_COLOR_ORDER.map(k =>
+    `<button class="swatch${k === noteColor ? " on" : ""}" data-c="${k}" style="background:${NOTE_COLORS[k]}"></button>`).join("");
+  $("note-colors").querySelectorAll("[data-c]").forEach(sw => {
+    sw.addEventListener("click", () => {
+      noteColor = sw.dataset.c;
+      ta.style.background = NOTE_COLORS[noteColor];
+      $("note-colors").querySelectorAll(".swatch").forEach(s => s.classList.toggle("on", s.dataset.c === noteColor));
+    });
+  });
+  $("note-save").style.display = canEdit() ? "" : "none";
+  $("note-del").style.display  = canEdit() ? "" : "none";
+  openSheet("sheet-note");
+}
+$("note-save").addEventListener("click", () => writeNote($("note-ta").value));
+$("note-del").addEventListener("click", () => writeNote(""));
+function writeNote(text) {
+  const it = currentItem();
+  if (!it || !canEdit()) return;
+  if (it.type === "note") {
+    it.text = text;
+    it.color = noteColor;          // sticky-note colour field, as on desktop
+    delete it.noteColor;
+  } else {
+    const f = face(it);            // alt face keeps its own note colour
+    if (text) f.o.note = text; else delete f.o.note;
+    f.o.noteColor = noteColor;
+  }
+  closeSheets();
+  refreshCurrentCard();
+  save();
+  toast(text ? "Note enregistrée" : "Note effacée", 1400);
+}
+
+/* --- Info --- */
+function openInfo() {
+  const it = currentItem();
+  if (!it) return;
+  const rows = [];
+  const row = (k, v, none) => rows.push(`<div class="kv"><div class="k">${k}</div><div class="v${none ? " none" : ""}">${v}</div></div>`);
+  if (it.type === "note") {
+    row("Type", "Note libre");
+    row("Texte", esc(it.text || "—") || "—", !it.text);
+  } else {
+    row("Nom", esc(it.label || "—"), !it.label);
+    const st = faceStatus(it);
+    row("Statut", st ? `<span style="color:${STATUS_COLOR[st]};font-weight:700">${STATUS_LABEL[st]}</span>` : "—", !st);
+    row("Tier", it.tier ? esc(it.tier) : "—", !it.tier);
+    row("Artiste", it.artist ? esc(memberName(it.artist)) : "—", !it.artist);
+    row("Taille figurine", it.miniSize ? esc(it.miniSize) : "—", !it.miniSize);
+    row("Base", it.baseSize ? esc(it.baseSize) : "—", !it.baseSize);
+    const due = dueChip(it);
+    row("Due", due ? `<span${due.late ? ' style="color:var(--danger)"' : ""}>${esc(due.text)}</span>` : "—", !due);
+    row("Brief", it.briefLink ? `<a href="${esc(it.briefLink)}" target="_blank" rel="noopener">Ouvrir ↗</a>` : "—", !it.briefLink);
+    row("Thread", it.threadLink ? `<a href="${esc(it.threadLink)}" target="_blank" rel="noopener">Ouvrir ↗</a>` : "—", !it.threadLink);
+    const note = faceNote(it);
+    row("Note", note ? esc(note).replace(/\n/g, "<br>") : "—", !note);
+    row("Versions", String((faceArchive(it).length || 0) + (faceSrc(it) ? 1 : 0)));
+    if (it.hasAlt) row("Alt", "Cette card a une version alternative (bouton ALT)");
+  }
+  $("info-list").innerHTML = rows.join("");
+  $("info-title").innerHTML = `Infos${altView ? " · ALT" : ""} <button class="x" data-close>×</button>`;
+  openSheet("sheet-info");
+}
+
+/* --- Grid --- */
+function openGrid() {
+  const list = $("grid-list");
+  if (!deck.length) { list.innerHTML = `<div class="empty-note">Aucune card.</div>`; openSheet("sheet-grid"); return; }
+  let html = "", lastGroup = null, open = false;
+  deck.forEach((e, i) => {
+    if (e.group !== lastGroup) {
+      if (open) html += `</div>`;
+      html += `<div class="ghead">${esc(e.group)}</div><div class="grid-sec">`;
+      lastGroup = e.group; open = true;
+    }
+    const it = e.it;
+    const hid = it.hidden && !canEdit();
+    let inner;
+    if (it.type === "note") {
+      inner = `<div class="gph" style="background:${noteBg(it)};color:#1b1b1b;font-size:10px;padding:6px;text-align:center;line-height:1.25;overflow:hidden">${esc((it.text || "Note").slice(0, 60))}</div>`;
+    } else if (it.src && !hid) {
+      inner = `<img src="${esc(it.src)}" loading="lazy" alt="">`;
+    } else {
+      inner = `<div class="gph">${hid ? "🔒" : "+"}</div>`;
+    }
+    const dot = it.status ? `<div class="gd" style="background:${STATUS_COLOR[it.status]}"></div>` : "";
+    const lbl = it.type === "note" ? "" : `<div class="gl">${esc(it.label || "—")}</div>`;
+    html += `<button class="gcell${i === cur ? " cur" : ""}" data-i="${i}">${inner}${dot}${lbl}</button>`;
+  });
+  if (open) html += `</div>`;
+  list.innerHTML = html;
+  list.querySelectorAll("[data-i]").forEach(el => {
+    el.addEventListener("click", () => {
+      const i = +el.dataset.i;
+      closeSheets();
+      cur = Math.max(0, Math.min(deck.length - 1, i));
+      curId = deck[cur].it.id;
+      altView = false;
+      renderDeck();
+    });
+  });
+  openSheet("sheet-grid");
+  const c = list.querySelector(".gcell.cur");
+  if (c) c.scrollIntoView({ block: "center" });
+}
+
+/* ---------- Photo (camera / gallery) ---------- */
+let pendingPhoto = null;   // data URL awaiting confirmation
+
+$("act-photo").addEventListener("click", () => {
+  const it = currentItem();
+  if (!it || !canEdit()) return;
+  $("file-input").value = "";
+  $("file-input").click();
+});
+$("file-input").addEventListener("change", async e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  busy(true, "Préparation de l'image…");
+  try {
+    pendingPhoto = await prepareImage(file);
+    const it = currentItem();
+    const replacing = it.type === "image" && !!faceSrc(it);
+    $("photo-preview").src = pendingPhoto;
+    $("photo-title").innerHTML = `${replacing ? "Remplacer l'image" : "Remplir ce slot"}${altView ? " · ALT" : ""} <button class="x" data-close>×</button>`;
+    $("photo-hint").textContent = replacing
+      ? "L'image actuelle sera archivée dans l'historique des versions."
+      : "Ce slot deviendra une card image.";
+    busy(false);
+    openSheet("sheet-photo");
+  } catch (err) {
+    busy(false);
+    console.error(err);
+    toast("Impossible de lire cette image");
+  }
+});
+
+// Downscale big phone photos before they travel to Storage.
+async function prepareImage(file, max = 1800, quality = 0.88) {
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+  // Small PNGs keep their transparency — everything else goes through the canvas.
+  if (file.type === "image/png" && file.size < 2_000_000) return dataUrl;
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  if (scale === 1 && file.size < 1_500_000) return dataUrl;
+  const cv = document.createElement("canvas");
+  cv.width  = Math.round(img.naturalWidth  * scale);
+  cv.height = Math.round(img.naturalHeight * scale);
+  const ctx = cv.getContext("2d");
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  return cv.toDataURL("image/jpeg", quality);
+}
+
+// Content-addressed upload — same scheme as the desktop app, so the same
+// picture is never stored twice.
+async function uploadImageToStorage(dataUrl) {
+  const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!m) throw new Error("Not a base64 data URL");
+  const mime = m[1];
+  let ext = (mime.split("/")[1] || "bin").split("+")[0].toLowerCase();
+  if (ext === "jpeg") ext = "jpg";
+  const bin = atob(m[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+  const path = `${hex.slice(0, 32)}.${ext}`;
+  const { error } = await sb.storage.from("board-images").upload(path, bytes, { contentType: mime, upsert: false });
+  if (error && !/already exists|duplicate|409/i.test(error.message)) throw error;
+  return sb.storage.from("board-images").getPublicUrl(path).data.publicUrl;
+}
+
+function archiveCurrent(f) {
+  if (!f.o.src) return;
+  if (!f.o.archive) f.o.archive = [];
+  f.o.archive.push({
+    src: f.o.src,
+    uploadedAt: Date.now(),
+    status: f.o.status || null,
+    note: f.o.note || null,
+  });
+}
+
+$("photo-confirm").addEventListener("click", async () => {
+  const it = currentItem();
+  if (!it || !pendingPhoto || !canEdit()) return;
+  closeSheets();
+  busy(true, "Envoi de l'image…");
+  let src = pendingPhoto;
+  try {
+    if (USE_SUPABASE && sb && currentUser) src = await uploadImageToStorage(pendingPhoto);
+  } catch (err) {
+    console.warn("Upload Storage échoué, on garde la data URL :", err);
+  }
+  const f = face(it);
+  archiveCurrent(f);
+  f.o.src = src;
+  if (!f.isAlt && it.type === "slot") it.type = "image";
+  pendingPhoto = null;
+  busy(false);
+  rebuildDeck(curId);
+  renderDeck();
+  save();
+  buzz(15);
+  toast("Image mise à jour");
+});
+
+/* ---------- Share (phone → Telegram & co) ----------
+   Two ways out, because they are not the same thing:
+   - "Envoyer la photo" hands the actual image file to the OS share sheet
+     (navigator.share), where Telegram / WhatsApp / Mail show up. The receiver
+     gets the picture inline.
+   - "Lien sur Telegram" opens Telegram on a t.me/share link pointing at the
+     public Storage URL. Only possible when the image really is hosted (old
+     boards still carry inline data-URL images).
+   The file is prepared when the sheet opens: iOS only allows navigator.share
+   straight out of a tap, so it cannot wait on a fetch. */
+const shareState = { file: null, url: null, caption: "", busy: false };
+
+function shareCaption(it) {
+  const st = faceStatus(it);
+  return [faceLabel(it) || "Sans nom", st ? st.toUpperCase() : null, board() && board().name]
+    .filter(Boolean).join(" · ");
+}
+function shareFileName(it, mime) {
+  const ext = ((mime || "image/jpeg").split("/")[1] || "jpg").split("+")[0].replace("jpeg", "jpg");
+  const base = (faceLabel(it) || "card")
+    .replace(/\u0153/g, "oe").replace(/\u0152/g, "OE").replace(/\u00e6/g, "ae").replace(/\u00c6/g, "AE")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "card";
+  return `${base}.${ext}`;
+}
+function openShare() {
+  const it = currentItem();
+  const src = it && faceSrc(it);
+  if (!src) return;
+  shareState.file = null;
+  shareState.url = /^https?:\/\//i.test(src) ? src : null;
+  shareState.caption = shareCaption(it);
+  $("share-thumb").src = src;
+  $("share-name").textContent = faceLabel(it) || "Sans nom";
+  $("share-sub").textContent = [faceStatus(it) ? faceStatus(it).toUpperCase() : null, altView ? "ALT" : null]
+    .filter(Boolean).join(" · ") || "—";
+  const canFiles = !!(navigator.canShare && window.File);
+  $("share-photo").disabled = !canFiles;
+  $("share-tg").disabled = !shareState.url;
+  $("share-copy").disabled = !shareState.url;
+  $("share-hint").textContent =
+    canFiles && shareState.url ? ""
+    : canFiles ? "Image stockée dans le board, sans URL publique : seul l'envoi de la photo est possible."
+    : shareState.url ? "Ce navigateur ne sait pas envoyer de fichier — passe par le lien."
+    : "Rien de partageable ici : ce navigateur n'envoie pas de fichier et l'image n'a pas d'URL publique. Ouvre le board sur ton téléphone.";
+  openSheet("sheet-share");
+  // warm up the file so the share call itself stays inside the tap
+  if (canFiles) {
+    shareState.busy = true;
+    fetch(src).then(r => r.blob()).then(b => {
+      shareState.file = new File([b], shareFileName(it, b.type), { type: b.type || "image/jpeg" });
+    }).catch(() => { shareState.file = null; }).then(() => { shareState.busy = false; });
+  }
+}
+$("act-share").addEventListener("click", () => { buzz(); openShare(); });
+$("share-photo").addEventListener("click", () => {
+  const f = shareState.file;
+  if (!f) { toast(shareState.busy ? "Image en préparation, réessaie" : "Image illisible"); return; }
+  const data = { files: [f], text: shareState.caption };
+  if (!navigator.canShare(data)) { toast("Partage de fichier refusé par le navigateur"); return; }
+  navigator.share(data).then(closeSheets, err => {
+    if (err && err.name !== "AbortError") toast("Partage impossible");
+  });
+});
+$("share-tg").addEventListener("click", () => {
+  if (!shareState.url) return;
+  const link = "https://t.me/share/url?url=" + encodeURIComponent(shareState.url) +
+               "&text=" + encodeURIComponent(shareState.caption);
+  window.open(link, "_blank", "noopener");
+  closeSheets();
+});
+$("share-copy").addEventListener("click", async () => {
+  if (!shareState.url) return;
+  try {
+    await navigator.clipboard.writeText(shareState.url);
+    toast("Lien copié");
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = shareState.url; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("Lien copié"); } catch (e2) { toast("Copie impossible"); }
+    ta.remove();
+  }
+});
+
+/* ---------- Viewer + version history ---------- */
+let viewerIdx = -1;   // -1 = current version, >=0 = index in archive
+
+function openViewer() {
+  const it = currentItem();
+  if (!it || !faceSrc(it)) return;
+  viewerIdx = -1;
+  $("viewer").classList.add("on");
+  renderViewer();
+}
+function closeViewer() { $("viewer").classList.remove("on"); resetZoom(); }
+$("vw-close").addEventListener("click", closeViewer);
+
+function renderViewer() {
+  const it = currentItem();
+  if (!it) return;
+  const archive = faceArchive(it);
+  const isCur = viewerIdx < 0;
+  const v = isCur ? { src: faceSrc(it) } : archive[viewerIdx];
+  if (!v) { viewerIdx = -1; return renderViewer(); }
+  $("vw-img").src = v.src;
+  resetZoom();
+  $("vw-cap").innerHTML = `${esc(faceLabel(it) || "Sans nom")}${altView ? ' <span style="color:var(--warn)">· ALT</span>' : ""}` +
+    `<small>${isCur ? "Version actuelle" : "Archivée — " + new Date(v.uploadedAt).toLocaleString("fr-FR")}` +
+    `${!isCur && v.status ? " · " + (STATUS_LABEL[v.status] || v.status) : ""}</small>`;
+  $("vw-restore").style.display = (!isCur && canEdit()) ? "" : "none";
+
+  const strip = $("vw-strip");
+  const parts = [];
+  if (faceSrc(it)) parts.push(`<button class="vthumb${isCur ? " on" : ""}" data-v="-1"><img src="${esc(faceSrc(it))}" alt=""><div class="lb">Actuelle</div></button>`);
+  archive.slice().reverse().forEach((a, k) => {
+    const real = archive.length - 1 - k;
+    const d = new Date(a.uploadedAt);
+    parts.push(`<button class="vthumb${viewerIdx === real ? " on" : ""}" data-v="${real}"><img src="${esc(a.src)}" alt=""><div class="lb">${isNaN(d) ? "—" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</div></button>`);
+  });
+  strip.innerHTML = archive.length ? parts.join("") : "";
+  strip.querySelectorAll("[data-v]").forEach(el => {
+    el.addEventListener("click", () => { viewerIdx = +el.dataset.v; renderViewer(); });
+  });
+}
+$("vw-restore").addEventListener("click", () => {
+  const it = currentItem();
+  if (!it || viewerIdx < 0 || !canEdit()) return;
+  const f = face(it);
+  const archive = f.o.archive || [];
+  const v = archive[viewerIdx];
+  if (!v) return;
+  archiveCurrent(f);
+  f.o.src = v.src;
+  // The entry we just restored was pushed one slot further by archiveCurrent
+  f.o.archive.splice(viewerIdx, 1);
+  viewerIdx = -1;
+  renderViewer();
+  refreshCurrentCard();
+  save();
+  toast("Version restaurée");
+});
+
+/* Pinch / pan / double-tap zoom in the viewer */
+let vz = { s: 1, x: 0, y: 0 };
+const vwStage = $("vw-stage"), vwImg = $("vw-img");
+const ptrs = new Map();
+let pinch = null, lastTap = 0;
+
+function applyZoom(animate) {
+  vwImg.style.transition = animate ? "transform .2s" : "none";
+  vwImg.style.transform = `translate(calc(-50% + ${vz.x}px), calc(-50% + ${vz.y}px)) scale(${vz.s})`;
+}
+function resetZoom() { vz = { s: 1, x: 0, y: 0 }; applyZoom(false); }
+function clampPan() {
+  const r = vwStage.getBoundingClientRect();
+  const maxX = Math.max(0, (vwImg.clientWidth  * vz.s - r.width)  / 2);
+  const maxY = Math.max(0, (vwImg.clientHeight * vz.s - r.height) / 2);
+  vz.x = Math.max(-maxX, Math.min(maxX, vz.x));
+  vz.y = Math.max(-maxY, Math.min(maxY, vz.y));
+}
+vwStage.addEventListener("pointerdown", e => {
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { vwStage.setPointerCapture(e.pointerId); } catch (err) {}
+  if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: vz.s };
+  }
+});
+vwStage.addEventListener("pointermove", e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p) return;
+  const prev = { x: p.x, y: p.y };
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 2 && pinch) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    vz.s = Math.max(1, Math.min(6, pinch.s * (d / pinch.d)));
+    clampPan(); applyZoom(false);
+  } else if (ptrs.size === 1 && vz.s > 1) {
+    vz.x += e.clientX - prev.x;
+    vz.y += e.clientY - prev.y;
+    clampPan(); applyZoom(false);
+  }
+});
+function vwUp(e) {
+  const had = ptrs.size;
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (had === 1) {
+    const now = Date.now();
+    if (now - lastTap < 300) {                        // double tap
+      vz = vz.s > 1 ? { s: 1, x: 0, y: 0 } : { s: 2.5, x: 0, y: 0 };
+      clampPan(); applyZoom(true);
+      lastTap = 0;
+    } else {
+      lastTap = now;
+      setTimeout(() => {                              // single tap closes, unless zoomed
+        if (lastTap && Date.now() - lastTap >= 290 && vz.s === 1 && !ptrs.size) {
+          lastTap = 0;
+          closeViewer();
+        }
+      }, 300);
+    }
+  }
+}
+vwStage.addEventListener("pointerup", vwUp);
+vwStage.addEventListener("pointercancel", e => { ptrs.delete(e.pointerId); pinch = null; });
+
+/* ---------- Wiring ---------- */
+$("btn-board").addEventListener("click", openBoards);
+$("tb-title").addEventListener("click", openBoards);
+$("btn-grid").addEventListener("click", openGrid);
+$("btn-menu").addEventListener("click", () => {
+  $("menu-email").textContent = currentUser ? currentUser.email : "mode local";
+  $("menu-role").textContent  = currentUser ? currentUser.role  : "—";
+  openSheet("sheet-menu");
+});
+$("menu-logout").addEventListener("click", async () => {
+  if (sb) await sb.auth.signOut();
+  location.reload();
+});
+$("menu-reload").addEventListener("click", async () => {
+  closeSheets();
+  busy(true, "Rechargement…");
+  await cloudLoad();
+  busy(false);
+  pickBoard(state.currentBoardId, true);
+  toast("Board à jour");
+});
+$("act-info").addEventListener("click", openInfo);
+$("act-status").addEventListener("click", openStatus);
+$("act-note").addEventListener("click", openNote);
+$("act-history").addEventListener("click", openViewer);
+$("auth-btn").addEventListener("click", signIn);
+$("auth-pw").addEventListener("keydown", e => { if (e.key === "Enter") signIn(); });
+
+window.addEventListener("resize", () => layout(0, false));
+
+/* ---------- Boot ---------- */
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const l = JSON.parse(raw);
+    if (l && l.boards) {
+      state.boards = l.boards;
+      state.nextBoardId = l.nextBoardId || 1;
+      state.currentBoardId = l.currentBoardId ?? (firstActiveBoard() && firstActiveBoard().id) ?? null;
+    }
+  } catch (e) { console.warn("Local load failed", e); }
+}
+
+async function bootApp() {
+  busy(true, "Chargement du board…");
+  if (USE_SUPABASE) {
+    await cloudLoad();
+    await loadMembersCache();
+    subscribeRealtime();
+  } else {
+    loadLocal();
+  }
+  try {
+    const pref = +localStorage.getItem(BOARD_PREF_KEY);
+    if (pref && state.boards.some(b => b.id === pref)) state.currentBoardId = pref;
+  } catch (e) {}
+  // Don't open on an archived release (e.g. archived from the desktop since last visit)
+  const start = state.boards.find(b => b.id === state.currentBoardId);
+  if ((!start || start.archived) && state.boards.length) state.currentBoardId = firstActiveBoard().id;
+  busy(false);
+  $("app").classList.add("on");
+  pickBoard(state.currentBoardId);
+  if (!deck.length) {
+    $("deck-empty-msg").textContent = state.boards.length
+      ? "Aucune card dans cette release."
+      : "Aucune release — crée-la depuis la version bureau.";
+  }
+}
+
+(async function start() {
+  try { filter = localStorage.getItem(FILTER_PREF_KEY) || "sovereign"; } catch (e) {}
+  await initSupabase();
+  if (!USE_SUPABASE) { await bootApp(); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user && session.user.email && await loadCurrentUser(session.user.email)) {
+    await bootApp();
+  } else {
+    $("auth-err").classList.remove("on");
+    $("auth").classList.add("on");
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # CONTEXT — Release Board
 
-Last updated: 2026-06-04
+Last updated: 2026-10-15
 
 Snapshot of project state for the next Claude session. Read this first, then `assets/` for the original product spec, and `BACKOFFICE_SPEC.md` for the planned billing module.
 
@@ -35,6 +35,13 @@ The original product spec is in `assets/` (11 markdown docs the user wrote befor
 **Storage model**: single jsonb row in `boards_data` table holds `{boards, nextBoardId}`. Per-user local state (currentBoardId, viewMode, selectedId, currentFilter) stays in JS memory only.
 
 **Sync**: realtime subscription on `boards_data`. Local mutations debounced ~700ms → push to Supabase. Incoming updates re-render local state (ignored during active drag/resize/pill drag/pan).
+
+**Sync hardening (2026-08-05)** — fixes the "things disappear" reports:
+- **Optimistic lock**: `cloudSave()` only updates the row if `updated_at` still equals `lastSeenUpdatedAt` (the version we last loaded/wrote). On mismatch → sync indicator shows a conflict message + `refetchRemote()`. A stale client can no longer silently wipe everyone's work.
+- **Truncated realtime payloads**: rows >~1MB (base64 images in jsonb) arrive truncated — `payload.new.data` missing. Old code threw mid-handler and left `isApplyingRemote` stuck at `true`, permanently disabling `save()` until reload (likely the main data-loss cause). Now guarded: truncated payload → `refetchRemote()` instead.
+- **`refetchRemote()`**: cheap `updated_at` probe, full `cloudLoad()` + re-render only if changed. Called on window focus, `online`, `visibilitychange→visible`, channel `SUBSCRIBED` (reconnect catch-up), conflict, and truncated payloads. Skipped while a save is pending or an interaction is active.
+- `suppressNextRealtime` flag removed (could swallow a colleague's update); self-echo still skipped via `updated_by`.
+- **Storage migration is self-healing**: `scheduleMigrationIfNeeded()` (called after `refetchRemote()` and realtime applies) re-runs `migrateImagesToStorage()` 3s later if any `data:` URL is present in state — covers old clients pushing base64 and conflict rollbacks. The `board-images` bucket is confirmed live on the Supabase project (probe returned NoSuchKey, not "Bucket not found"). `cloudSave()` logs `[sync] payload ~N KB` to console — MBs there = migration still pending.
 
 **Fallback**: if Supabase keys are empty OR SDK CDN fails to load, app silently runs in localStorage-only mode (no auth, no team features).
 
@@ -85,11 +92,13 @@ Without this function deployed + secrets set, the ✨ name-gen feature shows a c
 ## File map
 
 ```
-index.html              ← the whole app (single source of truth)
+index.html              ← the whole desktop app (single source of truth)
+mobile.html             ← phone client: swipe deck, same Supabase row / same auth (see "Mobile" below)
 retouch-tool.js         ← standalone Liquify / Transform image editor (see RETOUCH_TOOL.md) — loaded by index.html
 retouch-demo.html       ← demo / test page for retouch-tool.js (not deployed)
 RETOUCH_TOOL.md         ← API + shortcuts of the retouch tool (reusable in other HTML projects)
 deploy/index.html       ← copy ready for Netlify Drop (rsync after every change)
+deploy/mobile.html      ← must be copied along with index.html
 deploy/retouch-tool.js  ← must be copied along with index.html
 netlify.toml            ← publish="." config
 .gitignore              ← excludes .env*, .claude/, node_modules/, .netlify/
@@ -111,6 +120,8 @@ supabase/
 
 ### Canvas / interactions
 - Infinite pan/zoom canvas (Space+drag, middle-click, or drag on empty bg)
+  - Pan starts in a **capture-phase** `mousedown` on `#viewport` so Space+drag pans even when the press lands on a card (item handlers `stopPropagation`). Middle-click on a pill `<a>` is left alone (open link in new tab).
+  - `blurActiveTextField()` runs on canvas mousedown (pan + marquee): those handlers `preventDefault()`, which also cancels the browser's focus change — the release title / inspector field kept focus and the keyboard handler ignored Space/N/S/F/M ("la main ne marche plus"). Fixed 2026-09-14.
 - Wheel zoom centered on cursor
 - **Ctrl/Cmd + drag** = zoom-to-area rubber band (preempts item drag, fits selection to viewport)
 - Drop images from OS = creates image node at drop position
@@ -123,8 +134,13 @@ supabase/
 ### Item types
 - `image` — sculpted image with label, status, info pills, alt version
 - `slot` — empty placeholder, same overlay structure as image
-- `note` — sticky yellow note, editable on double-click
+- `note` — sticky yellow note, editable on double-click. Created via **+ Note / `N` / right-click → + Note** only — double-click on empty canvas used to create one, removed 2026-09-18 (too many accidental notes).
 - `group` — tier frame (dashed border + label + watermark). Slots inside are NOT children — they don't move with the frame.
+
+### Statuses (image/slot, and alt)
+`item.status` ∈ `sketch` / `wip` / `review` / `approved` / `question` / null. Every surface reads the same key: `.status-ring` (colored inset border on the node), inspector chips, alt-modal chips, right-click → Status submenu, hover-tip badge, version-modal badge (`#vm-status[data-st]`).
+- **`question`** (added 2026-09-18) = there's an open question on the piece. Hot pink `--question: #ff2d95`: 3px ring + pulsing inset glow (`.status-ring::after`, opacity keyframes, disabled under `prefers-reduced-motion`) + outer glow on the `.item` itself (children are clipped by `.item { overflow: hidden }`, so the outer shadow has to live on the item; `.item.selected[data-status="question"]` merges it with the blue selection ring). In the 240px inspector the chip takes its own full row (`flex: 1 1 100%`).
+- The back-office only looks at `approved` (`default_included`), so the new status doesn't affect billing.
 
 ### Node structure (image/slot) — CURRENT
 ```
@@ -156,10 +172,18 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 - Cap by node width prevents overflow when node is small on screen
 
 ### Info system
-- `INFO_FIELDS` = brief, thread, artist, base, due (note is separate — see below)
+- `INFO_FIELDS` = brief, thread, artist, base, size, due (note is separate — see below)
+  - `size` = **miniature's size** (`item.miniSize`, e.g. "32mm", "54mm", "75mm") — added 2026-09-14. Inspector field "Miniature's size" (with a datalist of common scales) above Base size; 📏 pill in detail mode, purple "M" dot in overview, "Mini size" line in the hover tip. Not yet read by the back-office export (`base_size` only).
 - Two view modes (toggle `M` key or button):
   - **Detail** (default): pills in horizontal bar at bottom of each node
   - **Overview**: image dimmed, pills replaced by tiny colored dots above each node (scan for missing info)
+
+### Note colors
+- One palette `NOTE_COLORS` = `{ id: { label, bg, edge } }`: yellow (default), red, pink, orange, green, blue, purple. The two PCs each shipped a 6-color version (one had red, the other pink); both ids are kept so every saved color still renders. Merged 2026-10-15.
+- Card notes: `item.noteColor` → tints the 📝 button (`--note-c`) and the hover tooltip. Alt notes: `item.altNode.noteColor`. Both picked in the note popup swatch row (`#np-colors`, built once by `buildNoteColorRow()`, `highlightNoteSwatch()` / `pickNoteColor()`).
+- Sticky notes: `item.color`, picked via right-click → Color submenu (colored dots). Rendering falls back to `item.noteColor` (what mobile.html wrote for stickies before 2026-10-15).
+- Hover tooltip (`#note-tip`) gets the bg + left edge color (`showNoteTip(content, anchor, colorId)`)
+- Absent field = yellow → zero migration needed, old boards unaffected
 
 ### Notes — NEW: popup + hover tooltip
 - The integrated notes panel on the right of each node was removed
@@ -224,15 +248,71 @@ transform: scale(min(clamp(0.4, 1/zoom, 3), node-screen-w / 180));
 - Calls `callAiProxy({ provider, model, prompt, image, maxTokens })` → POSTs to `${SUPABASE_URL}/functions/v1/ai-proxy` with user JWT
 - The Edge Function adds the server-side key, calls Anthropic/OpenAI, returns the text
 
+### Mobile — `mobile.html` (NEW)
+
+Separate standalone page for phones. Same Supabase project, same `boards_data.id='default'`
+row, same auth session (localStorage is shared per origin, so logging in on one page logs you
+in on the other). No canvas: the board is flattened into a **swipe deck**.
+
+**Reading order** — items are grouped by the tier frame whose rect contains their center
+(smallest one wins), frames are ordered row-major, items inside a frame are ordered row-major
+with a per-row tolerance. Ungrouped items land in a trailing "Hors tier" section. Sticky notes
+are cards too. `group` items are never cards themselves.
+
+**Navigation**
+- Swipe left/right (pointer events, rubber band at both ends, velocity-aware threshold)
+- Only `cur-1 .. cur+1` are in the DOM (`cards` Map + `ensureWindow` / `pruneWindow`) so big
+  data-URL images don't pile up
+- ▦ grid sheet: all cards as thumbnails grouped by tier, tap to jump
+- ☰ / title: release picker (year → release), remembered in `rh.mobile.boardId`. Archived
+  releases (`board.archived`, set from the desktop tabs) are listed apart under "ARCHIVÉES" and
+  never landed on by default (`firstActiveBoard()`); an open archived release shows "📦 archivée"
+  in the subtitle
+- Filter button cycles ALL → LDR → OVL (same semantics as the desktop tier filter),
+  remembered in `rh.mobile.filter`
+- ← / → arrow keys work too (desktop testing)
+
+**Card** — image (contain) + status ring + tier badge + name + chips
+(status / artist / mini size / base / due, red when overdue / brief / thread / note preview).
+`ALT` button flips the card to `altNode`; everything below then reads *and writes* the alt face
+via the `face(it)` accessor. Tap the image → fullscreen viewer with pinch-zoom, double-tap zoom,
+single-tap close, and the version-history strip (restore included, same splice logic as desktop).
+
+**Editing** (editors/admins only; readers get a read-only note sheet and no Statut/Photo)
+- Statut sheet → 5 chips (incl. Question) + "Aucun statut"
+- Note sheet → textarea + the 7 note colors (`item.note` + `noteColor` on the current face,
+  `item.text` + `item.color` for sticky notes — same fields as desktop)
+- Photo → file input (camera or gallery), downscaled to 1800px / JPEG 0.88 before upload
+  (small PNGs pass through untouched), uploaded with the same content-addressed SHA-256 path
+  as the desktop app, previous image archived, slots flip to `type: "image"`
+- `save()` writes the same `{boards, nextBoardId}` shape, 700ms debounce, realtime subscription
+  on a separate channel name (`boards_data_sync_mobile`). Same sync hardening as index.html
+  (2026-10-15): optimistic lock on `updated_at`, truncated-payload guard, `refetchRemote()` on
+  focus / online / visible / SUBSCRIBED / focusout, no remote re-render while typing or swiping
+
+**Routing** — `index.html` redirects to `mobile.html` when `pointer: coarse` and
+`min(screen.width, screen.height) < 820`. It uses `screen.*` on purpose: index.html has no
+viewport meta, so `innerWidth` reports ~980 on a phone. `index.html?desktop=1` sets
+`rh.forceDesktop` in localStorage and pins the desktop version (that's what the mobile
+"🖥 Version bureau" button links to). The desktop user menu has a "📱 Version mobile" button
+that clears the flag and goes back.
+
+**Not on mobile** (by design): moving/resizing/creating nodes, the inspector fields
+(name, artist, base, due, links, tier, alt toggle), the retouch tool, AI name gen, team admin,
+templates, export/import.
+
 ### Inspector (right panel)
 - Hidden in readonly mode
-- Fields: Name, Status chips, Artist, Base size, Due date, Brief link, Thread link, Note (textarea), Tier (dropdown), Has alt checkbox, Delete button
+- Fields: Name, Status chips (Sketch / WIP / Review / OK / Question), Artist, Base size, Due date, Brief link, Thread link, Note (textarea), Tier (dropdown), Has alt checkbox, Delete button
 
 ### Topbar (auto-hide)
 - Editable release name (input top-left, syncs to current board)
 - Filter buttons (top-right of title row)
-- User menu (admin/editor/reader): email + role badge, Team button (admin only), **⚙ Settings**, Password, Logout
+- User menu (admin/editor/reader): email + role badge, **Vaguy link** (wave icon → https://vaguy-studio.netlify.app), Team button (admin only), **⚙ Settings**, Password, Logout
 - Year tabs row + Release tabs row
+  - **Reorder** (2026-09-14): drag a release tab onto another (HTML5 DnD, same year only, insertion mark before/after) or right-click → Move left / Move right. Order = order in `state.boards` (`moveBoard(id, targetId, before)` rewrites the year's slots in place) → syncs like everything else, no migration.
+  - **Archive** (2026-09-14): right-click tab → Archive release sets `board.archived = true`. Archived boards are hidden from the tabs (and a year with only archived boards hides its year tab) but stay in state/sync. "📦 Archived (n)" button at the right end of the release row opens `#archive-popover` (all years): click a row = open it read-through (its tab shows as `📦 name`, italic/dashed, and an orange "📦 Archived · Restore" badge appears next to the title), "Restore" = unarchive. Last active board cannot be archived. `fallbackBoard(year, exclude)` picks where to land after archive/delete (active, same year first); `cb()`/`cloudLoad`/realtime/`bootApp` never land on an archived board. Readers see the popover but not Restore (`body.readonly`).
+  - Topbar auto-hide is suspended while the popover or the ctx-menu is open (`isTopbarPinnedOpen()`).
 - **Auto-hide**: bar is hidden by default; reveals when cursor is in top 26px; **3-second delay before hiding** when cursor leaves the zone
 - 3-second boot grace so the bar stays visible initially
 
@@ -350,6 +430,7 @@ open E:/Claude code/figma/index.html
 **Deploy** (no compile step):
 ```
 cp index.html deploy/index.html
+cp mobile.html deploy/mobile.html
 # Then drag E:/Claude code/figma/deploy/ on app.netlify.com/drop
 ```
 
