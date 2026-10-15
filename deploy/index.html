@@ -315,7 +315,10 @@
   .item .node-corner-tools     { transform-origin: top right; }
   .item .node-side-tools       { transform-origin: bottom right; }
   .item .pills-bar             { transform-origin: bottom left; }
-  .item .handle                { transform-origin: 100% 100%; }
+  /* = the node's corner (16px box, 6px outside): scaling around it keeps the
+     visible part inside the node — around the handle's own corner it slid
+     fully outside past ~175% zoom and got clipped by .item overflow:hidden */
+  .item .handle                { transform-origin: 10px 10px; transform: scale(var(--ui-natural, 1)); }  /* no node-width cap: stays grabbable zoomed out */
   .item.group .group-label     { transform-origin: bottom left; }
   .item.group .group-pin       { transform-origin: bottom left; }
   .item.group .group-watermark { transform-origin: top center; }
@@ -1025,9 +1028,9 @@
   }
 
   .handle {
-    position: absolute; width: 14px; height: 14px;
+    position: absolute; width: 16px; height: 16px;
     background: var(--accent); border: 2px solid #fff;
-    border-radius: 50%; right: -8px; bottom: -8px;
+    border-radius: 50%; right: -6px; bottom: -6px;
     cursor: nwse-resize;
     pointer-events: auto;   /* needed because .item.group has pointer-events: none */
     z-index: 5;
